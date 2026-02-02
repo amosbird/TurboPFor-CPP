@@ -110,8 +110,8 @@ namespace turbopfor {
     unsigned char * p4D1Dec128v32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
 
     // n-element blocks (Scalar)
-    unsigned char * p4Enc32(uint32_t * in, uint8_t n, unsigned char * out);
-    unsigned char * p4D1Dec32(unsigned char * in, uint8_t n, uint32_t * out, uint32_t start);
+    unsigned char * p4Enc32(uint32_t * in, unsigned n, unsigned char * out);
+    unsigned char * p4D1Dec32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
 }
 ```
 
