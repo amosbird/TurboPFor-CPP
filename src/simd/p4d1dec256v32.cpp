@@ -62,7 +62,10 @@ ALWAYS_INLINE const unsigned char * p4D1Dec256Exceptions(
 
     const unsigned char * ip = in + pad8(n);
 
-    alignas(32) uint32_t ex[MAX_VALUES + 64]; // Uninitialized - we will write to it
+    alignas(32) uint32_t ex[MAX_VALUES + 64];
+    /// SIMD loads read 4/8 elements at a time; unpoison to avoid false positives
+    /// when num is not aligned (unused lanes are masked out by shuffle)
+    TURBOPFOR_MSAN_UNPOISON(ex, sizeof(ex));
     uint32_t * ex_ptr = ex;
     unsigned rem = num;
 

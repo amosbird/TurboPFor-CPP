@@ -39,6 +39,9 @@ __attribute__((noinline)) const unsigned char * p4D1Dec128Exceptions(
     const unsigned char * ip = in + pad8(n);
 
     alignas(16) uint32_t ex[MAX_VALUES + 64];
+    /// SIMD loads read 4 elements at a time; unpoison to avoid false positives
+    /// when num is not a multiple of 4 (unused lanes are masked out by pshufb)
+    TURBOPFOR_MSAN_UNPOISON(ex, sizeof(ex));
     ip = scalar::detail::bitunpack32Scalar(const_cast<unsigned char *>(ip), num, ex, bx);
 
     const uint32_t * pex = ex;

@@ -4,6 +4,20 @@
 
 #include <smmintrin.h> // SSE4.1
 
+/// MSan support: unpoison memory that will be partially written then read via SIMD.
+/// SIMD loads may read beyond the actually-written elements, which is safe
+/// (unused lanes are masked out) but triggers MSan false positives.
+#if defined(__clang__) && defined(__has_feature)
+#    if __has_feature(memory_sanitizer)
+#        include <sanitizer/msan_interface.h>
+#        define TURBOPFOR_MSAN_UNPOISON(ptr, size) __msan_unpoison(ptr, size)
+#    endif
+#endif
+
+#ifndef TURBOPFOR_MSAN_UNPOISON
+#    define TURBOPFOR_MSAN_UNPOISON(ptr, size) static_cast<void>(0)
+#endif
+
 // Define ALWAYS_INLINE for the SIMD implementation
 #ifndef ALWAYS_INLINE
 #    ifdef _MSC_VER
