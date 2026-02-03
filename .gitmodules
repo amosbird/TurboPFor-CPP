@@ -1,3 +1,0 @@
-[submodule "third_party/TurboPFor"]
-	path = third_party/TurboPFor
-	url = https://github.com/powturbo/TurboPFor-Integer-Compression.git

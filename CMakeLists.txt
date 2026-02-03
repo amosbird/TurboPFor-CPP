@@ -11,6 +11,16 @@ endif()
 
 project(turbopfor_cpp LANGUAGES C CXX)
 
+include(FetchContent)
+
+FetchContent_Declare(
+  turbopfor_upstream
+  URL https://github.com/powturbo/TurboPFor-Integer-Compression/archive/refs/heads/master.zip
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+
+FetchContent_MakeAvailable(turbopfor_upstream)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -138,7 +148,7 @@ if(ENABLE_AVX2)
   )
 endif()
 
-set(TURBOPFOR_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/TurboPFor)
+set(TURBOPFOR_SOURCE_DIR ${turbopfor_upstream_SOURCE_DIR})
 
 # Non-AVX2 reference library for basic functions (p4enc32, p4d1dec32, bitpack32, etc.)
 # These are compiled WITHOUT -mavx2 because the basic functions are in #ifndef __AVX2__ blocks
