@@ -126,7 +126,7 @@ Performance vs C reference (`p4enc64`/`p4d1dec64`) across scenarios:
 |-------|-----------|--------|--------------|------|--------|
 | Phase 1 | 3/3 | All criteria met | Phase Inspector | 2026-03-22 | ✅ PASSED |
 | Phase 2 | 1/1 | All criteria met: SIMD gated off with documented rationale, dispatch correct, build clean, 12/12 suites pass | Phase Inspector | 2026-03-22 | ✅ PASSED |
-| Phase 3 | 1/1 | All 12 test suites pass (0 failures). Benchmark documented: scalar 256v64 decode near-parity with C ref for exception-heavy data; encode ~20% slower (expected for scalar). No 128v64 regression. | Craftsman Coder | 2026-03-22 | ✅ PASSED |
+| Phase 3 | 1/1 | Phase Inspector verified: build clean, 12/12 suites 0 failures (independently re-run), benchmark data complete with decode+encode tables, 128v64 regression check present, 04-commit-msg.md exists, specification success criteria all met, no TODOs/FIXMEs in source. | Phase Inspector | 2026-03-22 | ✅ PASSED |
 
 ---
 
