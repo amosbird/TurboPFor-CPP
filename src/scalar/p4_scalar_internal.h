@@ -702,4 +702,7 @@ unsigned char * bitunpack128v64Scalar(unsigned char * in, uint64_t * out, unsign
 unsigned char * bitpack256v64Scalar(const uint64_t * in, unsigned char * out, unsigned b);
 unsigned char * bitunpack256v64Scalar(unsigned char * in, uint64_t * out, unsigned b);
 
+/// Apply delta1 decoding for 256-element 64-bit blocks
+void applyDelta1_256_64(uint64_t * out, unsigned n, uint64_t start);
+
 } // namespace turbopfor::scalar::detail

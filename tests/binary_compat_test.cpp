@@ -1,3 +1,4 @@
+#include "turbopfor.h"
 #include "scalar/p4_scalar.h"
 #include "simd/p4_simd.h"
 
@@ -1880,6 +1881,102 @@ unsigned runBinaryCompatibility128v64Test()
     return failed;
 }
 
+//
+// Test 11: Roundtrip Compatibility Test (256v64)
+// Verifies C++ p4Enc256v64/p4Dec256v64/p4D1Dec256v64 roundtrip correctness.
+//
+unsigned runBinaryCompatibility256v64Test()
+{
+    std::mt19937_64 rng(1337ull);
+    const unsigned n = 256u;
+
+    unsigned passed = 0;
+    unsigned failed = 0;
+
+    std::printf("=== Roundtrip Compatibility Test (256v64) ===\n");
+    std::printf("=== Verifying C++ p4Enc256v64/p4Dec256v64/p4D1Dec256v64 ===\n");
+    std::printf("=== Testing n = 256 ===\n\n");
+
+    struct TestPattern
+    {
+        std::string name;
+        std::function<void(std::vector<uint64_t> &, std::mt19937_64 &)> fill;
+    };
+
+    std::vector<TestPattern> patterns;
+    patterns.push_back({"sequential", [](std::vector<uint64_t> & d, std::mt19937_64 &) { fillSequential64(d, 0ull, 1ull); }});
+    patterns.push_back({"all_zeros", [](std::vector<uint64_t> & d, std::mt19937_64 &) { fillConstant64(d, 0ull); }});
+    patterns.push_back({"all_same", [](std::vector<uint64_t> & d, std::mt19937_64 &) { fillConstant64(d, 42ull); }});
+
+    for (unsigned bw : {1u, 2u, 4u, 8u, 16u, 24u, 31u, 32u, 33u, 40u, 48u, 56u, 63u, 64u})
+    {
+        uint64_t max_val = (bw == 64u) ? 0xFFFFFFFFFFFFFFFFull : ((1ull << bw) - 1ull);
+        patterns.push_back(
+            {"random_bw" + std::to_string(bw), [max_val](std::vector<uint64_t> & d, std::mt19937_64 & r) { fillRandom64(d, max_val, r); }});
+    }
+
+    patterns.push_back({"exceptions_10pct_64b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                            fillWithExceptions64(d, 255ull, 0x100000000ull, 10u, r);
+                        }});
+
+    for (const auto & pattern : patterns)
+    {
+        std::vector<uint64_t> input(n, 0ull);
+        std::vector<unsigned char> enc_buf(n * 12 + 512, 0u);
+        std::vector<uint64_t> out_non_delta(n, 0ull);
+        std::vector<uint64_t> out_non_delta_scalar(n, 0ull);
+        std::vector<uint64_t> out_delta(n, 0ull);
+        std::vector<uint64_t> out_delta_scalar(n, 0ull);
+
+        pattern.fill(input, rng);
+        unsigned char * end = turbopfor::p4Enc256v64(input.data(), n, enc_buf.data());
+        (void)end;
+
+        bool ok = true;
+
+        turbopfor::p4Dec256v64(enc_buf.data(), n, out_non_delta.data());
+        turbopfor::scalar::p4Dec256v64(enc_buf.data(), n, out_non_delta_scalar.data());
+        if (!std::equal(out_non_delta.begin(), out_non_delta.end(), out_non_delta_scalar.begin()))
+        {
+            std::fprintf(stderr, "FAIL [n=%u %s]: non-delta decode mismatch top-level vs scalar\n", n, pattern.name.c_str());
+            ++failed;
+            ok = false;
+        }
+
+        if (ok)
+        {
+            turbopfor::p4D1Dec256v64(enc_buf.data(), n, out_delta.data(), 0ull);
+            turbopfor::scalar::p4D1Dec256v64(enc_buf.data(), n, out_delta_scalar.data(), 0ull);
+
+            if (!std::equal(out_delta.begin(), out_delta.end(), out_delta_scalar.begin()))
+            {
+                std::fprintf(stderr, "FAIL [n=%u %s]: delta1 decode mismatch top-level vs scalar\n", n, pattern.name.c_str());
+                ++failed;
+                ok = false;
+            }
+
+            uint64_t acc = 0ull;
+            for (unsigned i = 0; ok && i < n; ++i)
+            {
+                acc += input[i] + 1ull;
+                if (out_delta[i] != acc)
+                {
+                    std::fprintf(stderr, "FAIL [n=%u %s]: delta1 roundtrip mismatch at %u\n", n, pattern.name.c_str(), i);
+                    ++failed;
+                    ok = false;
+                    break;
+                }
+            }
+        }
+
+        if (ok)
+            ++passed;
+    }
+
+    std::printf("%u passed, %u failed\n\n", passed, failed);
+    return failed;
+}
+
 int main()
 {
     unsigned failed_compat = runBinaryCompatibilityTest();
@@ -1893,9 +1990,10 @@ int main()
     unsigned failed_bitpack64 = runBitpack64CompatibilityTest();
     unsigned failed_64_compat = runBinaryCompatibility64Test();
     unsigned failed_128v64_compat = runBinaryCompatibility128v64Test();
+    unsigned failed_256v64_compat = runBinaryCompatibility256v64Test();
 
     unsigned total = failed_compat + failed_128v_cross + failed_128v_compat + failed_256v_cross + failed_256v_compat + failed_bitunpack
-        + failed_bitunpack_d1 + failed_proto + failed_bitpack64 + failed_64_compat + failed_128v64_compat;
+        + failed_bitunpack_d1 + failed_proto + failed_bitpack64 + failed_64_compat + failed_128v64_compat + failed_256v64_compat;
 
     std::printf("=== Summary ===\n");
     std::printf("Binary Compatibility Test failures: %u\n", failed_compat);
@@ -1909,6 +2007,7 @@ int main()
     std::printf("Bitpack64 Compatibility Test failures: %u\n", failed_bitpack64);
     std::printf("Binary Compatibility (64-bit) Test failures: %u\n", failed_64_compat);
     std::printf("Binary Compatibility (128v64) Test failures: %u\n", failed_128v64_compat);
+    std::printf("Roundtrip Compatibility (256v64) Test failures: %u\n", failed_256v64_compat);
     std::printf("Total failures: %u\n", total);
 
     return total > 0 ? 1 : 0;

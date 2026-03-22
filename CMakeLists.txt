@@ -86,6 +86,9 @@ set(TURBOPFOR_SOURCES
   src/scalar/bitpack128v64_scalar.cpp
   src/scalar/p4enc128v64_scalar.cpp
   src/scalar/p4d1dec128v64_scalar.cpp
+  src/scalar/bitpack256v64_scalar.cpp
+  src/scalar/p4enc256v64_scalar.cpp
+  src/scalar/p4d1dec256v64_scalar.cpp
   src/scalar/bitpack128v32_scalar.cpp
   src/scalar/p4enc128v32_scalar.cpp
   src/scalar/p4d1dec128v32_scalar.cpp
@@ -106,6 +109,9 @@ if(ENABLE_SSE42)
     src/simd/p4enc128v64.cpp
     src/simd/p4dec128v64.cpp
     src/simd/p4d1dec128v64.cpp
+    src/simd/p4enc256v64.cpp
+    src/simd/p4dec256v64.cpp
+    src/simd/p4d1dec256v64.cpp
   )
 endif()
 
@@ -232,6 +238,9 @@ set_source_files_properties(
   src/simd/p4enc128v64.cpp
   src/simd/p4dec128v64.cpp
   src/simd/p4d1dec128v64.cpp
+  src/simd/p4enc256v64.cpp
+  src/simd/p4dec256v64.cpp
+  src/simd/p4d1dec256v64.cpp
   PROPERTIES COMPILE_OPTIONS "-mssse3;-msse4.1;-msse4.2;-mpopcnt"
 )
 
@@ -256,4 +265,3 @@ add_executable(vbyte64_test tests/vbyte64_test.cpp)
 target_link_libraries(vbyte64_test PRIVATE turbopfor turbopfor_ref_base)
 target_include_directories(vbyte64_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_options(vbyte64_test PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS})
-

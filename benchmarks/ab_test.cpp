@@ -2,6 +2,7 @@
 /// Benchmarks encode/decode operations and bit-packing operations
 /// Supports scalar and SIMD implementations with various input patterns
 
+#include "turbopfor.h"
 #include "scalar/p4_scalar.h"
 #include "simd/p4_simd.h"
 
@@ -129,12 +130,14 @@ struct CommandLineArgs
     bool bitunpackd1_64_only = false; ///< Test bitunpackd1_64 only
     bool simd128v64 = false; ///< Test 128v64 variant (non-delta decode)
     bool simd128v64d1 = false; ///< Test 128v64 variant (delta1 decode)
+    bool simd256v64d1 = false; ///< Test 256v64 variant (delta1 decode)
 
     /// Validates argument consistency and prints errors if invalid
     bool validate() const
     {
         // Check SIMD exclusivity
-        unsigned simd_modes = (simd128 ? 1u : 0u) + (simd256 ? 1u : 0u) + (simd128v64 ? 1u : 0u) + (simd128v64d1 ? 1u : 0u);
+        unsigned simd_modes
+            = (simd128 ? 1u : 0u) + (simd256 ? 1u : 0u) + (simd128v64 ? 1u : 0u) + (simd128v64d1 ? 1u : 0u) + (simd256v64d1 ? 1u : 0u);
         if (simd_modes > 1)
         {
             std::fprintf(stderr, "Error: Cannot run multiple SIMD modes at the same time\n");
@@ -142,7 +145,7 @@ struct CommandLineArgs
         }
 
         // Check 64-bit mode exclusivity with 32-bit bitpack tests
-        if ((p64 || bitpack64_only || bitunpack64_only || bitunpackd1_64_only || simd128v64 || simd128v64d1)
+        if ((p64 || bitpack64_only || bitunpack64_only || bitunpackd1_64_only || simd128v64 || simd128v64d1 || simd256v64d1)
             && (bitpack_only || bitunpack_only || bitunpackd1_only || simd128 || simd256))
         {
             std::fprintf(stderr, "Error: 64-bit tests cannot be combined with 32-bit tests\n");
@@ -150,7 +153,7 @@ struct CommandLineArgs
         }
 
         // Check SIMD and bitpack test incompatibility
-        if ((simd128 || simd256 || simd128v64 || simd128v64d1)
+        if ((simd128 || simd256 || simd128v64 || simd128v64d1 || simd256v64d1)
             && (bitpack_only || bitunpack_only || bitunpackd1_only || bitpack64_only || bitunpack64_only || bitunpackd1_64_only))
         {
             std::fprintf(stderr, "Error: SIMD tests cannot be combined with bitpack/unpack tests\n");
@@ -158,7 +161,7 @@ struct CommandLineArgs
         }
 
         // Check element count range (only for non-SIMD tests)
-        if (!simd128 && !simd256 && !simd128v64 && !simd128v64d1 && (n_start < 1 || n_end > 127 || n_start > n_end))
+        if (!simd128 && !simd256 && !simd128v64 && !simd128v64d1 && !simd256v64d1 && (n_start < 1 || n_end > 127 || n_start > n_end))
         {
             std::fprintf(stderr, "Error: n must be in range [1, 127] and start <= end\n");
             return false;
@@ -256,6 +259,10 @@ bool parseArguments(int argc, char ** argv, CommandLineArgs & args)
         {
             args.simd128v64d1 = true;
         }
+        else if (std::strcmp(argv[i], "--simd256v64d1") == 0)
+        {
+            args.simd256v64d1 = true;
+        }
         else if (std::strcmp(argv[i], "--iters") == 0 && i + 1 < argc)
         {
             args.iters = static_cast<unsigned>(std::atoi(argv[++i]));
@@ -319,6 +326,7 @@ void printUsage(const char * prog)
     std::printf("  --bitunpackd1_64   Benchmark bitd1unpack64 vs bitunpackd1_64Scalar\n");
     std::printf("  --simd128v64       Test 128v64 non-delta (n=128)\n");
     std::printf("  --simd128v64d1     Test 128v64 delta1 decode (n=128)\n");
+    std::printf("  --simd256v64d1     Test 256v64 delta1 decode (n=256)\n");
     std::printf("  --iters <count>    Number of iterations (default: 100000)\n");
     std::printf("  --runs <count>     Number of runs per test (default: 3)\n");
     std::printf("  --exc-pct <pct>    Force percentage of exceptions (values > 2^bw)\n");
@@ -329,6 +337,7 @@ void printUsage(const char * prog)
     std::printf("  %s --p64               # Test 64-bit scalar, n=1..127\n", prog);
     std::printf("  %s --simd128v64        # Test 128v64 non-delta (n=128)\n", prog);
     std::printf("  %s --simd128v64d1      # Test 128v64 delta1 (n=128)\n", prog);
+    std::printf("  %s --simd256v64d1      # Test 256v64 delta1 (n=256)\n", prog);
     std::printf("  %s --bitpack64 --n 32  # Test bitpack64 with 32 elements\n", prog);
 }
 
@@ -859,9 +868,8 @@ BitunpackD1Result runBitunpackD1_64Benchmark(const std::vector<uint64_t> & input
     return result;
 }
 
-/// Benchmarks 64-bit p4enc/p4d1dec (scalar or 128v64)
-/// When simd128v64d1 is true, decode uses delta1: C ref = p4dec128v64 + bitd1dec64, Ours = p4D1Dec128v64
-BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, bool simd128v64, bool simd128v64d1 = false)
+/// Benchmarks 64-bit p4enc/p4d1dec (scalar, 128v64, or 256v64)
+BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, bool simd128v64, bool simd128v64d1 = false, bool simd256v64d1 = false)
 {
     const unsigned num_elements = static_cast<unsigned>(input.size());
 
@@ -901,7 +909,15 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
     // Warmup
     for (unsigned i = 0; i < 1000; ++i)
     {
-        if (simd128v64 || simd128v64d1)
+        if (simd256v64d1)
+        {
+            turbopfor::p4Enc256v64(input_copy.data(), num_elements, our_buf);
+            turbopfor::p4D1Dec256v64(our_buf, num_elements, out, 0ull);
+            // Reference: scalar64 baseline for 256v64 stage-1
+            ::p4enc64(input_copy.data(), num_elements, ref_buf);
+            ::p4d1dec64(ref_buf, num_elements, out, 0ull);
+        }
+        else if (simd128v64 || simd128v64d1)
         {
             ::p4enc128v64(input_copy.data(), num_elements, ref_buf);
             turbopfor::simd::p4Enc128v64(input_copy.data(), num_elements, our_buf);
@@ -942,7 +958,9 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
         for (unsigned i = 0; i < count; ++i)
         {
             unsigned char * end;
-            if (simd128v64 || simd128v64d1)
+            if (simd256v64d1)
+                end = ::p4enc64(input_copy.data(), num_elements, ref_buf);
+            else if (simd128v64 || simd128v64d1)
                 end = ::p4enc128v64(input_copy.data(), num_elements, ref_buf);
             else
                 end = ::p4enc64(input_copy.data(), num_elements, ref_buf);
@@ -954,7 +972,9 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
         for (unsigned i = 0; i < count; ++i)
         {
             unsigned char * end;
-            if (simd128v64 || simd128v64d1)
+            if (simd256v64d1)
+                end = turbopfor::p4Enc256v64(input_copy.data(), num_elements, our_buf);
+            else if (simd128v64 || simd128v64d1)
                 end = turbopfor::simd::p4Enc128v64(input_copy.data(), num_elements, our_buf);
             else
                 end = turbopfor::scalar::p4Enc64(input_copy.data(), num_elements, our_buf);
@@ -974,7 +994,9 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
         auto start = Clock::now();
         for (unsigned i = 0; i < count; ++i)
         {
-            if (simd128v64d1)
+            if (simd256v64d1)
+                ::p4d1dec64(ref_buf, num_elements, out, 0ull);
+            else if (simd128v64d1)
             {
                 ::p4d1dec128v64(ref_buf, num_elements, out, 0ull);
             }
@@ -988,7 +1010,9 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
         start = Clock::now();
         for (unsigned i = 0; i < count; ++i)
         {
-            if (simd128v64d1)
+            if (simd256v64d1)
+                turbopfor::p4D1Dec256v64(our_buf, num_elements, out, 0ull);
+            else if (simd128v64d1)
                 turbopfor::simd::p4D1Dec128v64(our_buf, num_elements, out, 0ull);
             else if (simd128v64)
                 turbopfor::simd::p4Dec128v64(our_buf, num_elements, out);
@@ -1031,15 +1055,15 @@ int main(int argc, char ** argv)
     }
 
     // Detect 64-bit mode
-    bool is_64bit
-        = args.p64 || args.bitpack64_only || args.bitunpack64_only || args.bitunpackd1_64_only || args.simd128v64 || args.simd128v64d1;
+    bool is_64bit = args.p64 || args.bitpack64_only || args.bitunpack64_only || args.bitunpackd1_64_only || args.simd128v64
+        || args.simd128v64d1 || args.simd256v64d1;
 
     // Determine if this is a bitpack-only style test (single throughput column)
     bool is_bitop_only = args.bitpack_only || args.bitunpack_only || args.bitunpackd1_only || args.bitpack64_only || args.bitunpack64_only
         || args.bitunpackd1_64_only;
 
     // Configure SIMD/128v mode if requested
-    if (args.simd128 || args.simd256 || args.simd128v64 || args.simd128v64d1)
+    if (args.simd128 || args.simd256 || args.simd128v64 || args.simd128v64d1 || args.simd256v64d1)
     {
         if (args.simd128)
         {
@@ -1056,6 +1080,12 @@ int main(int argc, char ** argv)
             args.n_start = args.n_end = 128;
             std::printf("=== TurboPFor A/B Performance Test - 128v64 Delta1 (n=128) ===\n");
             std::printf("=== C ref: p4enc128v64/p4d1dec128v64, Ours: simd::p4Enc128v64/simd::p4D1Dec128v64 ===\n");
+        }
+        else if (args.simd256v64d1)
+        {
+            args.n_start = args.n_end = 256;
+            std::printf("=== TurboPFor A/B Performance Test - 256v64 Delta1 (n=256) ===\n");
+            std::printf("=== C ref: p4enc64/p4d1dec64, Ours: p4Enc256v64/p4D1Dec256v64 ===\n");
         }
         else
         {
@@ -1087,7 +1117,7 @@ int main(int argc, char ** argv)
 
     // Print test parameters
     std::printf("=== %u iterations x %u runs per bit width ===\n", args.iters, args.runs);
-    if (args.simd128 || args.simd256 || args.simd128v64 || args.simd128v64d1 || args.single_n)
+    if (args.simd128 || args.simd256 || args.simd128v64 || args.simd128v64d1 || args.simd256v64d1 || args.single_n)
         std::printf("=== Testing n=%u ===\n\n", args.n_start);
     else
         std::printf("=== Testing n=%u to %u ===\n\n", args.n_start, args.n_end);
@@ -1107,7 +1137,8 @@ int main(int argc, char ** argv)
     unsigned total_tests = 0;
 
     // Generate test scenarios
-    std::vector<Scenario> scenarios = generateScenarios(args.exc_pct, args.simd128 || args.simd128v64 || args.simd128v64d1, args.simd256);
+    std::vector<Scenario> scenarios
+        = generateScenarios(args.exc_pct, args.simd128 || args.simd128v64 || args.simd128v64d1 || args.simd256v64d1, args.simd256);
 
     // Test loop over element counts
     for (unsigned n = args.n_start; n <= args.n_end; ++n)
@@ -1225,7 +1256,7 @@ int main(int argc, char ** argv)
                         BenchResult best{};
                         for (unsigned r = 0; r < args.runs; ++r)
                         {
-                            auto result = runBenchmark64(input, args.iters, args.simd128v64, args.simd128v64d1);
+                            auto result = runBenchmark64(input, args.iters, args.simd128v64, args.simd128v64d1, args.simd256v64d1);
                             if (r == 0 || result.ref_enc_mb_s > best.ref_enc_mb_s)
                                 best.ref_enc_mb_s = result.ref_enc_mb_s;
                             if (r == 0 || result.our_enc_mb_s > best.our_enc_mb_s)
@@ -1411,7 +1442,7 @@ int main(int argc, char ** argv)
     }
 
     // Print grand summary if testing multiple element counts or SIMD
-    if (args.n_end > args.n_start || args.simd128 || args.simd256 || args.simd128v64 || args.simd128v64d1)
+    if (args.n_end > args.n_start || args.simd128 || args.simd256 || args.simd128v64 || args.simd128v64d1 || args.simd256v64d1)
     {
         if (is_bitop_only)
         {

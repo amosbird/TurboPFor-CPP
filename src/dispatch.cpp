@@ -97,4 +97,24 @@ unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, ui
 #endif
 }
 
+// 256v64 functions always use scalar implementation.
+// The SIMD 128v64 delta1 path has a known bug: bitunpackD1_128v64 truncates
+// the 64-bit start value to 32 bits (via _mm_set1_epi32), producing incorrect
+// results when the carry from the first 128-element block exceeds 32 bits.
+// SIMD optimization for 256v64 is deferred to Task 04.
+unsigned char * p4Enc256v64(uint64_t * in, unsigned n, unsigned char * out)
+{
+    return turbopfor::scalar::p4Enc256v64(in, n, out);
+}
+
+unsigned char * p4Dec256v64(unsigned char * in, unsigned n, uint64_t * out)
+{
+    return turbopfor::scalar::p4Dec256v64(in, n, out);
+}
+
+unsigned char * p4D1Dec256v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
+{
+    return turbopfor::scalar::p4D1Dec256v64(in, n, out, start);
+}
+
 } // namespace turbopfor

@@ -32,4 +32,13 @@ unsigned char * p4Dec128v64(unsigned char * in, unsigned n, uint64_t * out);
 /// P4 decoding with delta1 (128-element hybrid 64-bit format, SSE4.1)
 unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
 
+/// P4 encoding (256-element hybrid 64-bit format, AVX2/scalar-hybrid)
+unsigned char * p4Enc256v64(uint64_t * in, unsigned n, unsigned char * out);
+
+/// P4 decoding without delta (256-element hybrid 64-bit format)
+unsigned char * p4Dec256v64(unsigned char * in, unsigned n, uint64_t * out);
+
+/// P4 decoding with delta1 (256-element hybrid 64-bit format)
+unsigned char * p4D1Dec256v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
+
 } // namespace turbopfor::simd

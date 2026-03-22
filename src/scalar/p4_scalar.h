@@ -21,4 +21,8 @@ unsigned char * p4Enc128v64(uint64_t * in, unsigned n, unsigned char * out);
 unsigned char * p4Dec128v64(unsigned char * in, unsigned n, uint64_t * out);
 unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
 
+unsigned char * p4Enc256v64(uint64_t * in, unsigned n, unsigned char * out);
+unsigned char * p4Dec256v64(unsigned char * in, unsigned n, uint64_t * out);
+unsigned char * p4D1Dec256v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
+
 } // namespace turbopfor::scalar

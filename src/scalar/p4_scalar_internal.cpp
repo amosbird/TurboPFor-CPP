@@ -680,4 +680,10 @@ void writeHeader64(unsigned char *& out, unsigned b, unsigned bx)
     }
 }
 
+void applyDelta1_256_64(uint64_t * out, unsigned n, uint64_t start)
+{
+    for (unsigned i = 0; i < n; ++i)
+        out[i] = (start += out[i]) + (i + 1u);
+}
+
 } // namespace turbopfor::scalar::detail
