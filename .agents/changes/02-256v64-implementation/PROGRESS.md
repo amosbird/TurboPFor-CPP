@@ -16,7 +16,7 @@
 |------|-------|--------|-----------------|
 | 01 | Stabilize 256v64 Scalar Correctness Baseline | Completed | Verified: build clean, 0 test failures across all 12 suites, delta1 carry propagation correct |
 | 02 | Wire Public API, Dispatch, and Build for 256v64 | Completed | Verified: public API (3 functions), dispatch (scalar-only), CMake (scalar+SIMD sources), build clean, all 12 test suites pass |
-| 03 | Add/Adjust 256v64 Tests and Benchmark Mode | Completed | |
+| 03 | Add/Adjust 256v64 Tests and Benchmark Mode | Completed | Verified: 23 test patterns pass (5 new exception/edge + non-zero start delta1), --simd256v64d1 benchmark reports correct A/B comparison, existing --simd128v64d1 mode unaffected, all 12 suites 0 failures |
 
 **Phase Status**: Completed
 
