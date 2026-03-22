@@ -29,6 +29,11 @@ void writeHeader(unsigned char *& out, unsigned b, unsigned bx)
     scalar::detail::writeHeader(out, b, bx);
 }
 
+void writeHeader64(unsigned char *& out, unsigned b, unsigned bx)
+{
+    scalar::detail::writeHeader64(out, b, bx);
+}
+
 __attribute__((noinline)) void applyDelta1(uint32_t * out, unsigned n, uint32_t start)
 {
     if (n == 0u)
@@ -82,6 +87,15 @@ __attribute__((noinline)) void applyDelta1(uint32_t * out, unsigned n, uint32_t 
         scalar_carry += out[j] + 1u;
         out[j] = scalar_carry;
     }
+}
+
+__attribute__((noinline)) void applyDelta1_64(uint64_t * out, unsigned n, uint64_t start)
+{
+    // Delta1 decode for 64-bit values: out[i] = sum(in[0..i]) + (i+1) + start
+    // SSE2 only supports 32-bit integer ops natively, so 64-bit prefix sum is
+    // done with scalar code. The loop is simple enough that the compiler vectorizes well.
+    for (unsigned i = 0; i < n; ++i)
+        out[i] = (start += out[i]) + (i + 1u);
 }
 
 } // namespace turbopfor::simd::detail

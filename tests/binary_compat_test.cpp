@@ -20,11 +20,23 @@ extern "C" unsigned char * bitpack32(unsigned * in, unsigned n, unsigned char * 
 extern "C" unsigned char * bitunpack32(const unsigned char * in, unsigned n, uint32_t * out, unsigned b);
 extern "C" unsigned char * bitd1unpack32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b);
 
+// 64-bit C reference functions
+extern "C" unsigned char * p4enc64(uint64_t * in, unsigned n, unsigned char * out);
+extern "C" unsigned char * p4dec64(unsigned char * in, unsigned n, uint64_t * out);
+extern "C" unsigned char * p4d1dec64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
+extern "C" unsigned char * p4enc128v64(uint64_t * in, unsigned n, unsigned char * out);
+extern "C" unsigned char * p4dec128v64(unsigned char * in, unsigned n, uint64_t * out);
+extern "C" unsigned char * bitpack64(uint64_t * in, unsigned n, unsigned char * out, unsigned b);
+extern "C" unsigned char * bitunpack64(const unsigned char * in, unsigned n, uint64_t * out, unsigned b);
+
 namespace turbopfor::scalar::detail
 {
 unsigned char * bitpack32Scalar(const uint32_t * in, unsigned n, unsigned char * out, unsigned b);
 unsigned char * bitunpack32Scalar(unsigned char * in, unsigned n, uint32_t * out, unsigned b);
 unsigned char * bitunpackd1_32Scalar(unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b);
+unsigned char * bitpack64Scalar(const uint64_t * in, unsigned n, unsigned char * out, unsigned b);
+unsigned char * bitunpack64Scalar(unsigned char * in, unsigned n, uint64_t * out, unsigned b);
+unsigned char * bitunpackd1_64Scalar(unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b);
 }
 
 namespace
@@ -149,6 +161,115 @@ void normalizeP4Enc32(unsigned char * buf, unsigned n)
     b &= 0x3Fu;
     (void)bx;
     maskPaddingBits(buf + offset, n * b);
+}
+
+// --- 64-bit fill helpers ---
+
+void fillSequential64(std::vector<uint64_t> & data, uint64_t base, uint64_t step)
+{
+    for (size_t i = 0; i < data.size(); ++i)
+        data[i] = base + static_cast<uint64_t>(i) * step;
+}
+
+void fillRandom64(std::vector<uint64_t> & data, uint64_t max_val, std::mt19937_64 & rng)
+{
+    std::uniform_int_distribution<uint64_t> dist(0ull, max_val);
+    for (auto & v : data)
+        v = dist(rng);
+}
+
+void fillConstant64(std::vector<uint64_t> & data, uint64_t value)
+{
+    for (auto & v : data)
+        v = value;
+}
+
+void fillWithExceptions64(std::vector<uint64_t> & data, uint64_t base_max, uint64_t exc_value, unsigned exc_percent, std::mt19937_64 & rng)
+{
+    std::uniform_int_distribution<uint64_t> base_dist(0ull, base_max);
+    std::uniform_int_distribution<unsigned> exc_dist(0u, 99u);
+    std::mt19937 rng32(static_cast<uint32_t>(rng()));
+
+    for (auto & v : data)
+    {
+        if (exc_dist(rng32) < exc_percent)
+            v = exc_value;
+        else
+            v = base_dist(rng);
+    }
+}
+
+void normalizeP4Enc64(unsigned char * buf, unsigned n)
+{
+    if (n == 0u)
+        return;
+
+    unsigned b = buf[0];
+
+    // Constant block: 0xC0 flag
+    if ((b & 0xC0u) == 0xC0u)
+        return;
+
+    // PFOR or bitpack-only: check vbyte flag (0x40)
+    if ((b & 0x40u) == 0u)
+    {
+        unsigned bx = 0u;
+        unsigned offset = 1u;
+        if (b & 0x80u)
+        {
+            bx = buf[1];
+            offset = 2u;
+        }
+        b &= 0x3Fu;
+
+        // 63→64 quirk: TurboPFor never encodes b=63, always upgrades to 64
+        if (b == 63u)
+            b = 64u;
+
+        if (bx == 0u)
+        {
+            // Bitpack-only: mask trailing bits in the packed data
+            maskPaddingBits(buf + offset, static_cast<unsigned>(static_cast<uint64_t>(n) * b));
+            return;
+        }
+
+        if (bx <= 64u)
+        {
+            // PFOR with bitmap exceptions
+            // Bitmap is ceil(n/8) bytes for 32-bit, BUT for 64-bit it's
+            // ceil(n / 64) * 8 bytes (stored as uint64_t words)
+            unsigned bitmap_u64s = (n + 63u) / 64u;
+            unsigned bitmap_bytes = bitmap_u64s * 8u;
+            unsigned xn = 0u;
+            for (unsigned i = 0; i < bitmap_u64s; ++i)
+            {
+                uint64_t word = 0;
+                std::memcpy(&word, buf + offset + i * 8, 8);
+                xn += popcount64(word);
+            }
+
+            // Exception values are packed with bitpack64 (scalar horizontal)
+            unsigned char * ex_pack = buf + offset + bitmap_bytes;
+            maskPaddingBits(ex_pack, static_cast<unsigned>(static_cast<uint64_t>(xn) * bx));
+            unsigned ex_bytes = pad8(static_cast<unsigned>(static_cast<uint64_t>(xn) * bx));
+
+            // Base values packed after exceptions
+            unsigned char * base_pack = ex_pack + ex_bytes;
+            maskPaddingBits(base_pack, static_cast<unsigned>(static_cast<uint64_t>(n) * b));
+            return;
+        }
+
+        return;
+    }
+
+    // Vbyte exceptions: flag 0x40
+    unsigned bx = buf[1];
+    unsigned offset = 2u;
+    b &= 0x3Fu;
+    if (b == 63u)
+        b = 64u;
+    (void)bx;
+    maskPaddingBits(buf + offset, static_cast<unsigned>(static_cast<uint64_t>(n) * b));
 }
 
 } // namespace
@@ -913,8 +1034,7 @@ unsigned runCrossValidation256vTest()
         // Compare sizes
         if (scalar_len != c_len)
         {
-            std::fprintf(
-                stderr, "FAIL [n=%u %s]: size mismatch scalar=%zu C=%zu\n", n, pattern.name.c_str(), scalar_len, c_len);
+            std::fprintf(stderr, "FAIL [n=%u %s]: size mismatch scalar=%zu C=%zu\n", n, pattern.name.c_str(), scalar_len, c_len);
             ++failed;
             ok = false;
         }
@@ -1062,13 +1182,7 @@ unsigned runBinaryCompatibility256vTest()
         bool ok = true;
         if (c_len != cxx_scalar_len)
         {
-            std::fprintf(
-                stderr,
-                "FAIL [n=%u %s]: size mismatch C=%zu scalar=%zu\n",
-                n,
-                pattern.name.c_str(),
-                c_len,
-                cxx_scalar_len);
+            std::fprintf(stderr, "FAIL [n=%u %s]: size mismatch C=%zu scalar=%zu\n", n, pattern.name.c_str(), c_len, cxx_scalar_len);
             ++failed;
             ok = false;
         }
@@ -1238,6 +1352,534 @@ unsigned runPrototypeCompatibilityTest_OLD()
 }
 */
 
+//
+// Test 8: Bitpack64 Compatibility Test
+// Verifies C bitpack64/bitunpack64 matches C++ bitpack64Scalar/bitunpack64Scalar
+//
+unsigned runBitpack64CompatibilityTest()
+{
+    std::mt19937_64 rng(42ull);
+
+    unsigned passed = 0;
+    unsigned failed = 0;
+
+    std::printf("=== Bitpack64 Compatibility Test ===\n");
+    std::printf("=== Verifying C bitpack64/bitunpack64 <-> C++ bitpack64Scalar/bitunpack64Scalar ===\n");
+    std::printf("=== Testing n = 1 to 127, bit widths 1..64 ===\n\n");
+
+    for (unsigned n = 1; n <= 127; ++n)
+    {
+        for (unsigned bw = 1; bw <= 64; ++bw)
+        {
+            const uint64_t max_val = (bw == 64) ? 0xFFFFFFFFFFFFFFFFull : ((1ull << bw) - 1ull);
+            std::vector<uint64_t> input(n);
+            std::vector<unsigned char> c_buf(n * 8 + 128);
+            std::vector<unsigned char> cxx_buf(n * 8 + 128);
+            std::vector<uint64_t> out_c(n, 0ull);
+            std::vector<uint64_t> out_cxx(n, 0ull);
+
+            // Pattern: sequential (modulo max_val) to stay within bit width.
+            const uint64_t range = (bw == 64) ? 0ull : (max_val + 1ull);
+            for (unsigned i = 0; i < n; ++i)
+                input[i] = (range == 0ull) ? static_cast<uint64_t>(i) : static_cast<uint64_t>(i % range);
+
+            auto test_case = [&](const char * name)
+            {
+                std::fill(c_buf.begin(), c_buf.end(), 0u);
+                std::fill(cxx_buf.begin(), cxx_buf.end(), 0u);
+                std::fill(out_c.begin(), out_c.end(), 0ull);
+                std::fill(out_cxx.begin(), out_cxx.end(), 0ull);
+
+                unsigned char * c_end = ::bitpack64(input.data(), n, c_buf.data(), bw);
+                unsigned char * cxx_end = turbopfor::scalar::detail::bitpack64Scalar(input.data(), n, cxx_buf.data(), bw);
+
+                size_t c_len = static_cast<size_t>(c_end - c_buf.data());
+                size_t cxx_len = static_cast<size_t>(cxx_end - cxx_buf.data());
+
+                // Decode both with C decoder
+                ::bitunpack64(c_buf.data(), n, out_c.data(), bw);
+                turbopfor::scalar::detail::bitunpack64Scalar(c_buf.data(), n, out_cxx.data(), bw);
+
+                if (out_c != out_cxx)
+                {
+                    std::fprintf(stderr, "FAIL [n=%u b=%u %s]: decode mismatch (C pack)\n", n, bw, name);
+                    ++failed;
+                    return;
+                }
+
+                // Decode C++ packed data
+                std::fill(out_c.begin(), out_c.end(), 0ull);
+                std::fill(out_cxx.begin(), out_cxx.end(), 0ull);
+                ::bitunpack64(cxx_buf.data(), n, out_c.data(), bw);
+                turbopfor::scalar::detail::bitunpack64Scalar(cxx_buf.data(), n, out_cxx.data(), bw);
+
+                if (out_c != out_cxx)
+                {
+                    std::fprintf(stderr, "FAIL [n=%u b=%u %s]: decode mismatch (C++ pack)\n", n, bw, name);
+                    ++failed;
+                    return;
+                }
+
+                if (c_len != cxx_len)
+                {
+                    std::fprintf(stderr, "FAIL [n=%u b=%u %s]: pack size mismatch (C=%zu C++=%zu)\n", n, bw, name, c_len, cxx_len);
+                    ++failed;
+                    return;
+                }
+
+                // Verify the packed bytes match (after normalizing padding)
+                maskPaddingBits(c_buf.data(), static_cast<unsigned>(static_cast<uint64_t>(n) * bw));
+                maskPaddingBits(cxx_buf.data(), static_cast<unsigned>(static_cast<uint64_t>(n) * bw));
+                if (!std::equal(c_buf.begin(), c_buf.begin() + c_len, cxx_buf.begin()))
+                {
+                    std::fprintf(stderr, "FAIL [n=%u b=%u %s]: packed bytes mismatch\n", n, bw, name);
+                    ++failed;
+                    return;
+                }
+
+                ++passed;
+            };
+
+            test_case("sequential");
+
+            // Pattern: all_zeros
+            std::fill(input.begin(), input.end(), 0ull);
+            test_case("all_zeros");
+
+            // Pattern: all_same
+            std::fill(input.begin(), input.end(), max_val ? (max_val / 2u) : 0ull);
+            test_case("all_same");
+
+            // Pattern: random
+            std::uniform_int_distribution<uint64_t> dist(0ull, max_val);
+            for (auto & v : input)
+                v = dist(rng);
+            test_case("random");
+        }
+    }
+
+    std::printf("%u passed, %u failed\n\n", passed, failed);
+    return failed;
+}
+
+//
+// Test 9: Binary Compatibility Test (64-bit)
+// Verifies C p4enc64/p4d1dec64 is compatible with C++ turbopfor::p4Enc64/p4D1Dec64
+// Tests n = 1 to 127
+//
+unsigned runBinaryCompatibility64Test()
+{
+    std::mt19937_64 rng(42ull);
+
+    std::vector<unsigned> sizes;
+    for (unsigned n = 1; n <= 127; ++n)
+        sizes.push_back(n);
+
+    unsigned passed = 0;
+    unsigned failed = 0;
+
+    std::printf("=== Binary Compatibility Test (64-bit) ===\n");
+    std::printf("=== Verifying C p4enc64/p4d1dec64 <-> C++ turbopfor::p4Enc64/p4D1Dec64 ===\n");
+    std::printf("=== Testing n = 1 to 127 ===\n\n");
+
+    for (unsigned n : sizes)
+    {
+        struct TestPattern
+        {
+            std::string name;
+            std::function<void(std::vector<uint64_t> &, std::mt19937_64 &)> fill;
+        };
+
+        std::vector<TestPattern> patterns;
+
+        patterns.push_back({"sequential", [](std::vector<uint64_t> & d, std::mt19937_64 &) { fillSequential64(d, 0ull, 1ull); }});
+        patterns.push_back({"all_zeros", [](std::vector<uint64_t> & d, std::mt19937_64 &) { fillConstant64(d, 0ull); }});
+        patterns.push_back({"all_same", [](std::vector<uint64_t> & d, std::mt19937_64 &) { fillConstant64(d, 42ull); }});
+
+        // Test various bit widths including values that span the 32-bit boundary
+        for (unsigned bw : {1u, 2u, 4u, 8u, 16u, 24u, 31u, 32u, 33u, 40u, 48u, 56u, 63u, 64u})
+        {
+            uint64_t max_val = (bw == 64) ? 0xFFFFFFFFFFFFFFFFull : ((1ull << bw) - 1ull);
+            patterns.push_back({"random_bw" + std::to_string(bw), [max_val](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                                    fillRandom64(d, max_val, r);
+                                }});
+        }
+
+        // Exception patterns: base values fit in 8 bits, exceptions require more bits
+        patterns.push_back({"exceptions_5pct_32b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                                fillWithExceptions64(d, 255ull, 100000ull, 5u, r);
+                            }});
+        patterns.push_back({"exceptions_10pct_32b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                                fillWithExceptions64(d, 255ull, 100000ull, 10u, r);
+                            }});
+        patterns.push_back({"exceptions_25pct_32b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                                fillWithExceptions64(d, 255ull, 100000ull, 25u, r);
+                            }});
+
+        // Exception patterns with 64-bit exception values
+        patterns.push_back({"exceptions_5pct_64b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                                fillWithExceptions64(d, 255ull, 0x100000000ull, 5u, r);
+                            }});
+        patterns.push_back({"exceptions_10pct_64b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                                fillWithExceptions64(d, 255ull, 0x100000000ull, 10u, r);
+                            }});
+
+        // Edge case: values requiring exactly 63 bits (tests 63→64 quirk)
+        patterns.push_back(
+            {"random_bw63_large", [](std::vector<uint64_t> & d, std::mt19937_64 & r) { fillRandom64(d, 0x7FFFFFFFFFFFFFFFull, r); }});
+
+        for (const auto & pattern : patterns)
+        {
+            const unsigned input_extra = 32u;
+            std::vector<uint64_t> input_copy(n + input_extra, 0ull);
+            std::vector<uint64_t> input(n);
+            std::vector<unsigned char> c_buf(n * 10 + 512);
+            std::vector<unsigned char> cxx_scalar_buf(n * 10 + 512);
+            std::vector<uint64_t> out_c(n, 0ull);
+            std::vector<uint64_t> out_cxx_scalar(n, 0ull);
+
+            pattern.fill(input, rng);
+            std::copy(input.begin(), input.end(), input_copy.begin());
+            std::fill(input_copy.begin() + n, input_copy.end(), 0ull);
+            std::fill(c_buf.begin(), c_buf.end(), 0u);
+            std::fill(cxx_scalar_buf.begin(), cxx_scalar_buf.end(), 0u);
+
+            unsigned char * c_end = ::p4enc64(input_copy.data(), n, c_buf.data());
+            unsigned char * cxx_scalar_end = turbopfor::scalar::p4Enc64(input_copy.data(), n, cxx_scalar_buf.data());
+
+            size_t c_len = c_end - c_buf.data();
+            size_t cxx_scalar_len = cxx_scalar_end - cxx_scalar_buf.data();
+
+            bool ok = true;
+
+            // Special check for all_zeros: should be constant block, 1 byte header
+            if (pattern.name == "all_zeros")
+            {
+                if (c_len != 1u || c_buf[0] != 0u)
+                {
+                    std::fprintf(
+                        stderr,
+                        "FAIL [n=%u %s]: C header mismatch (len=%zu byte0=0x%02X)\n",
+                        n,
+                        pattern.name.c_str(),
+                        c_len,
+                        static_cast<unsigned>(c_buf[0]));
+                    ++failed;
+                    ok = false;
+                }
+                if (cxx_scalar_len != 1u || cxx_scalar_buf[0] != 0u)
+                {
+                    std::fprintf(
+                        stderr,
+                        "FAIL [n=%u %s]: C++(scalar) header mismatch (len=%zu byte0=0x%02X)\n",
+                        n,
+                        pattern.name.c_str(),
+                        cxx_scalar_len,
+                        static_cast<unsigned>(cxx_scalar_buf[0]));
+                    ++failed;
+                    ok = false;
+                }
+            }
+
+            if (c_len != cxx_scalar_len)
+            {
+                std::fprintf(
+                    stderr, "FAIL [n=%u %s]: size mismatch C=%zu C++(scalar)=%zu\n", n, pattern.name.c_str(), c_len, cxx_scalar_len);
+                ++failed;
+                ok = false;
+            }
+            else
+            {
+                normalizeP4Enc64(c_buf.data(), n);
+                normalizeP4Enc64(cxx_scalar_buf.data(), n);
+                if (!std::equal(c_buf.begin(), c_buf.begin() + c_len, cxx_scalar_buf.begin()))
+                {
+                    std::fprintf(stderr, "FAIL [n=%u %s]: byte mismatch\n", n, pattern.name.c_str());
+                    // Print first differing byte for debugging
+                    for (size_t i = 0; i < c_len; ++i)
+                    {
+                        if (c_buf[i] != cxx_scalar_buf[i])
+                        {
+                            std::fprintf(
+                                stderr,
+                                "  first diff at byte %zu: C=0x%02X C++=0x%02X\n",
+                                i,
+                                static_cast<unsigned>(c_buf[i]),
+                                static_cast<unsigned>(cxx_scalar_buf[i]));
+                            break;
+                        }
+                    }
+                    ++failed;
+                    ok = false;
+                }
+                else
+                {
+                    // Decode with both implementations
+                    ::p4d1dec64(c_buf.data(), n, out_c.data(), 0ull);
+                    turbopfor::scalar::p4D1Dec64(cxx_scalar_buf.data(), n, out_cxx_scalar.data(), 0ull);
+                    if (out_c != out_cxx_scalar)
+                    {
+                        std::fprintf(stderr, "FAIL [n=%u %s]: decode mismatch\n", n, pattern.name.c_str());
+                        ++failed;
+                        ok = false;
+                    }
+                    else
+                    {
+                        // Cross-decode: C encode -> C++ scalar decode
+                        std::fill(out_cxx_scalar.begin(), out_cxx_scalar.end(), 0ull);
+                        turbopfor::scalar::p4D1Dec64(c_buf.data(), n, out_cxx_scalar.data(), 0ull);
+                        if (out_c != out_cxx_scalar)
+                        {
+                            std::fprintf(stderr, "FAIL [n=%u %s]: cross-decode C->C++(scalar) mismatch\n", n, pattern.name.c_str());
+                            ++failed;
+                            ok = false;
+                        }
+                        else
+                        {
+                            // Cross-decode: C++ scalar encode -> C decode
+                            std::fill(out_c.begin(), out_c.end(), 0ull);
+                            ::p4d1dec64(cxx_scalar_buf.data(), n, out_c.data(), 0ull);
+                            if (out_cxx_scalar != out_c)
+                            {
+                                std::fprintf(stderr, "FAIL [n=%u %s]: cross-decode C++(scalar)->C mismatch\n", n, pattern.name.c_str());
+                                ++failed;
+                                ok = false;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (ok)
+                ++passed;
+        }
+    }
+
+    std::printf("%u passed, %u failed\n\n", passed, failed);
+    return failed;
+}
+
+//
+// Test 10: Binary Compatibility Test (128v64)
+// Verifies C p4enc128v64/p4dec128v64 is compatible with C++ p4Enc128v64
+// Tests n = 128 only
+// Note: TurboPFor does NOT have p4d1dec128v64, so we test non-delta cross-decode
+// and also test our delta1 decoder via roundtrip
+//
+unsigned runBinaryCompatibility128v64Test()
+{
+    std::mt19937_64 rng(42ull);
+    const unsigned n = 128u;
+
+    unsigned passed = 0;
+    unsigned failed = 0;
+
+    std::printf("=== Binary Compatibility Test (128v64) ===\n");
+    std::printf("=== Verifying C p4enc128v64 <-> C++ p4Enc128v64 ===\n");
+    std::printf("=== Testing n = 128 ===\n\n");
+
+    struct TestPattern
+    {
+        std::string name;
+        std::function<void(std::vector<uint64_t> &, std::mt19937_64 &)> fill;
+    };
+
+    std::vector<TestPattern> patterns;
+
+    patterns.push_back({"sequential", [](std::vector<uint64_t> & d, std::mt19937_64 &) { fillSequential64(d, 0ull, 1ull); }});
+    patterns.push_back({"all_zeros", [](std::vector<uint64_t> & d, std::mt19937_64 &) { fillConstant64(d, 0ull); }});
+    patterns.push_back({"all_same", [](std::vector<uint64_t> & d, std::mt19937_64 &) { fillConstant64(d, 42ull); }});
+
+    // Test various bit widths — especially the b<=32 / b>32 boundary for hybrid format
+    for (unsigned bw : {1u, 2u, 4u, 8u, 16u, 24u, 31u, 32u, 33u, 40u, 48u, 56u, 63u, 64u})
+    {
+        uint64_t max_val = (bw == 64) ? 0xFFFFFFFFFFFFFFFFull : ((1ull << bw) - 1ull);
+        patterns.push_back(
+            {"random_bw" + std::to_string(bw), [max_val](std::vector<uint64_t> & d, std::mt19937_64 & r) { fillRandom64(d, max_val, r); }});
+    }
+
+    // Exception patterns with values fitting in 32 bits (tests SIMD path in 128v64)
+    patterns.push_back(
+        {"exceptions_5pct_32b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) { fillWithExceptions64(d, 255ull, 100000ull, 5u, r); }});
+    patterns.push_back({"exceptions_10pct_32b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                            fillWithExceptions64(d, 255ull, 100000ull, 10u, r);
+                        }});
+    patterns.push_back({"exceptions_25pct_32b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                            fillWithExceptions64(d, 255ull, 100000ull, 25u, r);
+                        }});
+
+    // Exception patterns with 64-bit exception values (tests scalar fallback in 128v64)
+    patterns.push_back({"exceptions_5pct_64b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                            fillWithExceptions64(d, 255ull, 0x100000000ull, 5u, r);
+                        }});
+    patterns.push_back({"exceptions_10pct_64b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                            fillWithExceptions64(d, 255ull, 0x100000000ull, 10u, r);
+                        }});
+
+    // Edge case: 63-bit values (tests 63→64 quirk)
+    patterns.push_back(
+        {"random_bw63_large", [](std::vector<uint64_t> & d, std::mt19937_64 & r) { fillRandom64(d, 0x7FFFFFFFFFFFFFFFull, r); }});
+
+    for (const auto & pattern : patterns)
+    {
+        const unsigned alloc_n = 128u;
+        std::vector<uint64_t> input(alloc_n, 0ull);
+        std::vector<unsigned char> cxx_scalar_buf(alloc_n * 10 + 512);
+        std::vector<unsigned char> c_buf(alloc_n * 10 + 512);
+        std::vector<uint64_t> out_cxx_scalar(alloc_n, 0ull);
+        std::vector<uint64_t> out_c(alloc_n, 0ull);
+
+        pattern.fill(input, rng);
+        std::fill(cxx_scalar_buf.begin(), cxx_scalar_buf.end(), 0u);
+        std::fill(c_buf.begin(), c_buf.end(), 0u);
+
+        // Encode with both implementations
+        unsigned char * cxx_scalar_end = turbopfor::scalar::p4Enc128v64(input.data(), n, cxx_scalar_buf.data());
+        unsigned char * c_end = ::p4enc128v64(input.data(), n, c_buf.data());
+
+        size_t cxx_scalar_len = cxx_scalar_end - cxx_scalar_buf.data();
+        size_t c_len = c_end - c_buf.data();
+
+        bool ok = true;
+
+        // Compare encoded sizes
+        if (cxx_scalar_len != c_len)
+        {
+            std::fprintf(stderr, "FAIL [n=%u %s]: size mismatch C=%zu C++(scalar)=%zu\n", n, pattern.name.c_str(), c_len, cxx_scalar_len);
+            ++failed;
+            ok = false;
+        }
+        else
+        {
+            // Normalize padding bits before comparison
+            normalizeP4Enc64(c_buf.data(), n);
+            normalizeP4Enc64(cxx_scalar_buf.data(), n);
+
+            if (!std::equal(c_buf.begin(), c_buf.begin() + c_len, cxx_scalar_buf.begin()))
+            {
+                std::fprintf(stderr, "FAIL [n=%u %s]: encode byte mismatch\n", n, pattern.name.c_str());
+                for (size_t i = 0; i < c_len; ++i)
+                {
+                    if (c_buf[i] != cxx_scalar_buf[i])
+                    {
+                        std::fprintf(
+                            stderr,
+                            "  first diff at byte %zu: C=0x%02X C++=0x%02X\n",
+                            i,
+                            static_cast<unsigned>(c_buf[i]),
+                            static_cast<unsigned>(cxx_scalar_buf[i]));
+                        break;
+                    }
+                }
+                ++failed;
+                ok = false;
+            }
+            else
+            {
+                // Cross-decode with C's p4dec128v64 (non-delta, since TurboPFor lacks p4d1dec128v64)
+                ::p4dec128v64(c_buf.data(), n, out_c.data());
+                ::p4dec128v64(cxx_scalar_buf.data(), n, out_cxx_scalar.data());
+
+                if (!std::equal(out_c.begin(), out_c.begin() + n, out_cxx_scalar.begin()))
+                {
+                    std::fprintf(stderr, "FAIL [n=%u %s]: C non-delta decode mismatch\n", n, pattern.name.c_str());
+                    ++failed;
+                    ok = false;
+                }
+                // NOTE: We do NOT check that C's non-delta decode output matches the original input.
+                // For b<=32, the 128v64 format intentionally reorders elements (pair-swap within
+                // groups of 4, matching the IP32 SIMD shuffle). TurboPFor's p4dec128v64 does NOT
+                // reverse this shuffle — it's designed for use with p4ndec128v64 where the shuffle
+                // is part of the SIMD pipeline. Our bitunpack128v64Scalar DOES reverse the shuffle,
+                // so our decode restores original order. But the C decode won't match input for b<=32.
+                //
+                // What matters:
+                //   1. C encode == C++ encode (verified above)
+                //   2. C decode of both produces same output (verified above)
+                //   3. Our delta1 decoder roundtrips correctly (verified below)
+                {
+                    // Test our delta1 decoder via roundtrip: encode -> decode with delta1 -> verify
+                    std::fill(out_cxx_scalar.begin(), out_cxx_scalar.end(), 0ull);
+                    turbopfor::scalar::p4D1Dec128v64(cxx_scalar_buf.data(), n, out_cxx_scalar.data(), 0ull);
+
+                    // Compute expected delta1 output
+                    std::vector<uint64_t> expected(n);
+                    uint64_t acc = 0;
+                    for (unsigned i = 0; i < n; ++i)
+                    {
+                        acc += input[i] + 1ull;
+                        expected[i] = acc;
+                    }
+                    if (!std::equal(out_cxx_scalar.begin(), out_cxx_scalar.begin() + n, expected.begin()))
+                    {
+                        std::fprintf(stderr, "FAIL [n=%u %s]: delta1 decode mismatch\n", n, pattern.name.c_str());
+                        for (unsigned i = 0; i < n; ++i)
+                        {
+                            if (out_cxx_scalar[i] != expected[i])
+                            {
+                                std::fprintf(
+                                    stderr,
+                                    "  first diff at index %u: got=0x%016llX expected=0x%016llX\n",
+                                    i,
+                                    static_cast<unsigned long long>(out_cxx_scalar[i]),
+                                    static_cast<unsigned long long>(expected[i]));
+                                break;
+                            }
+                        }
+                        ++failed;
+                        ok = false;
+                    }
+
+                    // Also test: C encode -> our delta1 decoder
+                    if (ok)
+                    {
+                        std::fill(out_cxx_scalar.begin(), out_cxx_scalar.end(), 0ull);
+                        turbopfor::scalar::p4D1Dec128v64(c_buf.data(), n, out_cxx_scalar.data(), 0ull);
+                        if (!std::equal(out_cxx_scalar.begin(), out_cxx_scalar.begin() + n, expected.begin()))
+                        {
+                            std::fprintf(stderr, "FAIL [n=%u %s]: cross-decode C->C++(scalar d1) mismatch\n", n, pattern.name.c_str());
+                            ++failed;
+                            ok = false;
+                        }
+                    }
+
+                    // Test our SIMD p4Dec128v64 (non-delta) matches C's p4dec128v64
+                    if (ok)
+                    {
+                        std::vector<uint64_t> out_simd(alloc_n, 0ull);
+                        turbopfor::simd::p4Dec128v64(c_buf.data(), n, out_simd.data());
+                        if (!std::equal(out_simd.begin(), out_simd.begin() + n, out_c.begin()))
+                        {
+                            std::fprintf(stderr, "FAIL [n=%u %s]: SIMD p4Dec128v64 vs C p4dec128v64 mismatch\n", n, pattern.name.c_str());
+                            for (unsigned i = 0; i < n; ++i)
+                            {
+                                if (out_simd[i] != out_c[i])
+                                {
+                                    std::fprintf(
+                                        stderr,
+                                        "  first diff at index %u: simd=0x%016llX c=0x%016llX\n",
+                                        i,
+                                        static_cast<unsigned long long>(out_simd[i]),
+                                        static_cast<unsigned long long>(out_c[i]));
+                                    break;
+                                }
+                            }
+                            ++failed;
+                            ok = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (ok)
+            ++passed;
+    }
+
+    std::printf("%u passed, %u failed\n\n", passed, failed);
+    return failed;
+}
+
 int main()
 {
     unsigned failed_compat = runBinaryCompatibilityTest();
@@ -1248,6 +1890,12 @@ int main()
     unsigned failed_bitunpack = runBitunpackCompatibilityTest();
     unsigned failed_bitunpack_d1 = runBitunpackD1CompatibilityTest();
     unsigned failed_proto = runPrototypeCompatibilityTest();
+    unsigned failed_bitpack64 = runBitpack64CompatibilityTest();
+    unsigned failed_64_compat = runBinaryCompatibility64Test();
+    unsigned failed_128v64_compat = runBinaryCompatibility128v64Test();
+
+    unsigned total = failed_compat + failed_128v_cross + failed_128v_compat + failed_256v_cross + failed_256v_compat + failed_bitunpack
+        + failed_bitunpack_d1 + failed_proto + failed_bitpack64 + failed_64_compat + failed_128v64_compat;
 
     std::printf("=== Summary ===\n");
     std::printf("Binary Compatibility Test failures: %u\n", failed_compat);
@@ -1258,9 +1906,10 @@ int main()
     std::printf("Bitunpack Compatibility Test failures: %u\n", failed_bitunpack);
     std::printf("BitunpackD1 Compatibility Test failures: %u\n", failed_bitunpack_d1);
     std::printf("Prototype Implementation Test failures: %u\n", failed_proto);
-    std::printf(
-        "Total failures: %u\n",
-        failed_compat + failed_128v_cross + failed_128v_compat + failed_256v_cross + failed_256v_compat + failed_bitunpack + failed_bitunpack_d1 + failed_proto);
+    std::printf("Bitpack64 Compatibility Test failures: %u\n", failed_bitpack64);
+    std::printf("Binary Compatibility (64-bit) Test failures: %u\n", failed_64_compat);
+    std::printf("Binary Compatibility (128v64) Test failures: %u\n", failed_128v64_compat);
+    std::printf("Total failures: %u\n", total);
 
-    return (failed_compat + failed_128v_cross + failed_128v_compat + failed_256v_cross + failed_256v_compat + failed_bitunpack + failed_bitunpack_d1 + failed_proto) > 0 ? 1 : 0;
+    return total > 0 ? 1 : 0;
 }

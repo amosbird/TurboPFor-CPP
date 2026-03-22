@@ -1,0 +1,199 @@
+// SIMD implementation of P4 decoding with delta1 for 128v64 format
+//
+// Uses fused SIMD approach matching TurboPFor C's p4d1dec128v64:
+// - No exceptions (b <= 32): fused bitunpack + delta1 prefix scan + STO64 zero-extend
+// - Bitmap exceptions (b+bx <= 32): fused bitunpack + SSSE3 exception merge + delta1 + STO64
+// - Fallback (b > 32 or b+bx > 32): scalar multi-phase approach
+
+#include "p4_simd.h"
+#include "p4_simd_internal.h"
+
+#include <smmintrin.h> // SSE4.1
+
+namespace turbopfor::simd
+{
+
+namespace
+{
+
+// Decode P4 payload with bitmap exceptions for 128v64 format
+//
+// Two paths:
+//   b+bx <= 32: Fused single-pass — unpack exceptions as uint32_t, then fused
+//               unpack + SSSE3 exception merge + delta1 + STO64 (matches TurboPFor C).
+//   b+bx > 32:  Multi-phase — unpack exceptions as uint64_t, unpack base values,
+//               apply patches, apply delta1 (scalar fallback).
+__attribute__((noinline)) const unsigned char *
+p4D1Dec128v64PayloadBitmap(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b, unsigned bx)
+{
+    using namespace turbopfor::simd::detail;
+
+    // Phase 1: Read bitmap + popcount
+    uint64_t bitmap[MAX_VALUES / 64] = {0};
+    const unsigned words = (n + 63u) / 64u;
+    unsigned exception_count = 0;
+
+    for (unsigned i = 0; i < words; ++i)
+    {
+        uint64_t word = loadU64Fast(in + i * sizeof(uint64_t));
+        if (i == words - 1u && (n & 0x3Fu))
+            word &= (1ull << (n & 0x3Fu)) - 1ull;
+
+        bitmap[i] = word;
+#if defined(__GNUC__) || defined(__clang__)
+        exception_count += static_cast<unsigned>(__builtin_popcountll(word));
+#else
+        uint64_t tmp = word;
+        while (tmp)
+        {
+            ++exception_count;
+            tmp &= tmp - 1ull;
+        }
+#endif
+    }
+
+    const unsigned char * ip = in + pad8(n);
+
+    if (b + bx <= 32u)
+    {
+        // FAST PATH: Fused single-pass (matches TurboPFor C's _bitd1unpack128v64)
+        //
+        // Unpack exceptions as uint32_t (since b+bx <= 32, they fit in 32 bits).
+        // Then fused: bitunpack + SSSE3 exception shuffle-merge + delta1 + STO64.
+        alignas(16) uint32_t ex[MAX_VALUES + 64];
+        ip = scalar::detail::bitunpack32Scalar(const_cast<unsigned char *>(ip), exception_count, ex, bx);
+
+        // Build 4-bit-per-group bitmap for SSSE3 shuffle patching
+        // The bitmap[] is already in the right format for our template:
+        // bitmap[0] has bits 0-63, bitmap[1] has bits 64-127.
+        // The template reads 4-bit nibbles from these words.
+        // (This is exactly what UnpackStepSSE_STO64_D1_EX expects.)
+
+        const uint32_t * pex = ex;
+        ip = bitd1unpack128v64_ex(ip, out, b, start, bitmap, pex);
+
+        return ip;
+    }
+
+    // SLOW PATH: b+bx > 32, scalar multi-phase approach
+
+    // Phase 2: Unpack exception values (scalar bitpack64)
+    uint64_t exceptions[MAX_VALUES + 64] = {0};
+    ip = scalar::detail::bitunpack64Scalar(const_cast<unsigned char *>(ip), exception_count, exceptions, bx);
+
+    // Phase 3: Unpack base values (SIMD bitunpack128v64)
+    ip = bitunpack128v64(ip, out, b);
+
+    // Phase 4: Apply patches
+    unsigned k = 0;
+    for (unsigned i = 0; i < words; ++i)
+    {
+        uint64_t word = bitmap[i];
+        while (word)
+        {
+#if defined(__GNUC__) || defined(__clang__)
+            unsigned bit = static_cast<unsigned>(__builtin_ctzll(word));
+#else
+            unsigned bit = 0;
+            while (((word >> bit) & 1ull) == 0ull)
+                ++bit;
+#endif
+            const unsigned idx = i * 64u + bit;
+            out[idx] |= exceptions[k++] << b;
+            word &= word - 1ull;
+        }
+    }
+
+    // Phase 5: Apply delta1 decoding
+    applyDelta1_64(out, n, start);
+
+    return ip;
+}
+
+} // namespace
+
+unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
+{
+    using namespace turbopfor::simd::detail;
+
+    if (n == 0u)
+        return in;
+
+    unsigned char * ip = in;
+    unsigned b = *ip++;
+
+    // Case 1: Constant block
+    if ((b & 0xC0u) == 0xC0u)
+    {
+        b &= 0x3Fu;
+        if (b == 63u)
+            b = 64u;
+
+        const unsigned bytes_stored = (b + 7u) / 8u;
+        uint64_t value = loadU64Fast(ip);
+        if (b < 64u)
+            value &= (1ull << b) - 1ull;
+
+        for (unsigned i = 0; i < n; ++i)
+            out[i] = (start += value) + (i + 1u);
+
+        return ip + bytes_stored;
+    }
+
+    // Case 2: Standard bitpacking (possibly with bitmap exceptions)
+    if ((b & 0x40u) == 0u)
+    {
+        unsigned bx = 0u;
+        if (b & 0x80u)
+        {
+            bx = *ip++;
+            b &= 0x7Fu;
+        }
+
+        if (b == 63u)
+            b = 64u;
+
+        if (bx == 0u)
+        {
+            ip = bitunpackD1_128v64(ip, out, b, start);
+            return ip;
+        }
+
+        return const_cast<unsigned char *>(p4D1Dec128v64PayloadBitmap(ip, n, out, start, b, bx));
+    }
+
+    // Case 3: Variable-byte exceptions
+    b &= 0x3Fu;
+    if (b == 63u)
+        b = 64u;
+
+    const unsigned exception_count = *ip++;
+
+    ip = bitunpack128v64(ip, out, b);
+
+    uint64_t exceptions[MAX_VALUES + 64] = {0};
+    ip = scalar::detail::vbDec64(ip, exception_count, exceptions);
+
+    // Apply patches
+    unsigned i = 0;
+    const unsigned ec8 = exception_count & ~7u;
+    for (; i < ec8; i += 8)
+    {
+        out[ip[i + 0]] |= exceptions[i + 0] << b;
+        out[ip[i + 1]] |= exceptions[i + 1] << b;
+        out[ip[i + 2]] |= exceptions[i + 2] << b;
+        out[ip[i + 3]] |= exceptions[i + 3] << b;
+        out[ip[i + 4]] |= exceptions[i + 4] << b;
+        out[ip[i + 5]] |= exceptions[i + 5] << b;
+        out[ip[i + 6]] |= exceptions[i + 6] << b;
+        out[ip[i + 7]] |= exceptions[i + 7] << b;
+    }
+    for (; i < exception_count; ++i)
+        out[ip[i]] |= exceptions[i] << b;
+
+    ip += exception_count;
+    applyDelta1_64(out, n, start);
+    return ip;
+}
+
+} // namespace turbopfor::simd

@@ -78,6 +78,14 @@ set(TURBOPFOR_SOURCES
   src/scalar/p4_scalar_bitunpack32.cpp
   src/scalar/p4_scalar_bitunpackd1_32.cpp
   src/scalar/p4_scalar_internal.cpp
+  src/scalar/p4_scalar_bitpack64.cpp
+  src/scalar/p4_scalar_bitunpack64.cpp
+  src/scalar/p4_scalar_bitunpackd1_64.cpp
+  src/scalar/p4enc64.cpp
+  src/scalar/p4d1dec64.cpp
+  src/scalar/bitpack128v64_scalar.cpp
+  src/scalar/p4enc128v64_scalar.cpp
+  src/scalar/p4d1dec128v64_scalar.cpp
   src/scalar/bitpack128v32_scalar.cpp
   src/scalar/p4enc128v32_scalar.cpp
   src/scalar/p4d1dec128v32_scalar.cpp
@@ -94,6 +102,10 @@ if(ENABLE_SSE42)
     src/simd/p4_simd_internal.cpp
     src/simd/bitpack128v32_simd.cpp
     src/simd/bitunpack128v32_simd.cpp
+    src/simd/bitpack128v64_simd.cpp
+    src/simd/p4enc128v64.cpp
+    src/simd/p4dec128v64.cpp
+    src/simd/p4d1dec128v64.cpp
   )
 endif()
 
@@ -133,6 +145,10 @@ if(ENABLE_SSE42)
     src/simd/p4_simd_internal.cpp
     src/simd/bitpack128v32_simd.cpp
     src/simd/bitunpack128v32_simd.cpp
+    src/simd/bitpack128v64_simd.cpp
+    src/simd/p4enc128v64.cpp
+    src/simd/p4dec128v64.cpp
+    src/simd/p4d1dec128v64.cpp
     PROPERTIES COMPILE_OPTIONS "-mssse3;-msse4.1;-msse4.2;-mpopcnt"
   )
 endif()
@@ -195,6 +211,10 @@ add_executable(binary_compat_test
   src/simd/p4_simd_internal.cpp
   src/simd/bitpack128v32_simd.cpp
   src/simd/bitunpack128v32_simd.cpp
+  src/simd/bitpack128v64_simd.cpp
+  src/simd/p4enc128v64.cpp
+  src/simd/p4dec128v64.cpp
+  src/simd/p4d1dec128v64.cpp
 )
 target_link_libraries(binary_compat_test PRIVATE turbopfor turbopfor_ref_base $<TARGET_OBJECTS:turbopfor_ref_avx2>)
 
@@ -208,6 +228,10 @@ set_source_files_properties(
   src/simd/p4_simd_internal.cpp
   src/simd/bitpack128v32_simd.cpp
   src/simd/bitunpack128v32_simd.cpp
+  src/simd/bitpack128v64_simd.cpp
+  src/simd/p4enc128v64.cpp
+  src/simd/p4dec128v64.cpp
+  src/simd/p4d1dec128v64.cpp
   PROPERTIES COMPILE_OPTIONS "-mssse3;-msse4.1;-msse4.2;-mpopcnt"
 )
 
@@ -226,4 +250,10 @@ endif()
 if(ENABLE_SSE42)
     target_compile_definitions(ab_test PRIVATE ENABLE_SSE42)
 endif()
+
+# vbyte64 binary compatibility test
+add_executable(vbyte64_test tests/vbyte64_test.cpp)
+target_link_libraries(vbyte64_test PRIVATE turbopfor turbopfor_ref_base)
+target_include_directories(vbyte64_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_options(vbyte64_test PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS})
 
