@@ -24,9 +24,9 @@
 
 | Task | Title | Status | Inspector Notes |
 |------|-------|--------|-----------------|
-| 04 | SIMD 256v64 Gate or Optimize | Not Started | |
+| 04 | SIMD 256v64 Gate or Optimize | Completed | Decision: gate SIMD off for all 64-bit decode. Found pre-existing pair-swap bug in STO64 decode (outputs [v2,v3,v0,v1] instead of [v0,v1,v2,v3]). Fixed 32-bit start truncation in bitunpackD1_128v64. Benchmark: scalar 256v64 decode within 0-1.3% of C reference for exception cases. All 12 suites 0 failures. |
 
-**Phase Status**: Not Started
+**Phase Status**: Completed
 
 ### Phase 3: Final Verification
 
@@ -51,10 +51,10 @@
 ## Completion Summary
 
 - **Total Tasks**: 5
-- **Completed**: 3
+- **Completed**: 4
 - **Incomplete**: 0
 - **In Progress**: 0
-- **Remaining**: 2
+- **Remaining**: 1
 
 ---
 
@@ -77,3 +77,4 @@
 | 2026-03-22 | 02 | Completed | Craftsman Coder | Verified public API, dispatch, and build are correctly wired; all acceptance criteria met |
 | 2026-03-22 | 02 | Inspection passed | Task Inspector | Confirmed: 3 API symbols in turbopfor.h, dispatch routes to scalar, CMake has scalar+SIMD sources, build clean, 12/12 test suites pass (0 failures) |
 | 2026-03-22 | 03 | Completed | Craftsman Coder | Enhanced 256v64 test coverage: added 5 exception/edge patterns (23 total, matching 128v64 parity), added non-zero start delta1 test, verified benchmark --simd256v64d1 mode works, all 12 suites pass (0 failures) |
+| 2026-03-22 | 04 | Completed | Craftsman Coder | Gate SIMD off for all 64-bit decode: discovered pair-swap bug in STO64 decode templates, fixed 32-bit start truncation in bitunpackD1_128v64 (fallback when start>UINT32_MAX), fixed bitd1unpack128v64_ex (returns nullptr for large start, caller falls back to multi-phase), updated dispatch to route 128v64+256v64 decode to scalar. Benchmarked: scalar 256v64 within 0-1.3% of C reference for decode with exceptions. All 12 suites 0 failures. |

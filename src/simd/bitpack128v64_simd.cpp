@@ -158,11 +158,23 @@ unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, uns
     {
         const unsigned char * ip_end = in + (V128_64_BLOCK_SIZE * b + 7u) / 8u;
 
-        __m128i sv = _mm_set1_epi32(static_cast<uint32_t>(start));
+        if (start <= UINT32_MAX)
+        {
+            // Fast path: start fits in 32 bits, fused SIMD D1 prefix scan is exact
+            __m128i sv = _mm_set1_epi32(static_cast<uint32_t>(start));
 
 #define CALL_STO64_D1(B) bitunpack_sse_sto64_d1_hybrid_entry<B, V128_64_BLOCK_SIZE>(in, out, sv)
-        STO64_SWITCH(b, CALL_STO64_D1);
+            STO64_SWITCH(b, CALL_STO64_D1);
 #undef CALL_STO64_D1
+        }
+        else
+        {
+            // Safe path: start exceeds 32 bits. The fused SIMD D1 path uses
+            // _mm_add_epi32 which would truncate the carry. Instead, unpack
+            // with SIMD (no D1), then apply 64-bit delta1 scalar.
+            bitunpack128v64(in, out, b);
+            applyDelta1_64(out, V128_64_BLOCK_SIZE, start);
+        }
 
         return const_cast<unsigned char *>(ip_end);
     }
@@ -171,8 +183,7 @@ unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, uns
     unsigned char * result = scalar::detail::bitunpack64Scalar(const_cast<unsigned char *>(in), V128_64_BLOCK_SIZE, out, b);
 
     // Apply delta1 scalar
-    for (unsigned i = 0; i < V128_64_BLOCK_SIZE; ++i)
-        out[i] = (start += out[i]) + (i + 1u);
+    applyDelta1_64(out, V128_64_BLOCK_SIZE, start);
 
     return result;
 }
@@ -199,9 +210,16 @@ bitunpack_sse_sto64_d1_ex_hybrid_entry(const unsigned char * in, uint64_t * out,
 // For b+bx <= 32: hybrid dispatch (periodic or fully-unrolled per bitwidth).
 // Returns: pointer past the consumed base-value bitstream.
 // Caller must have already unpacked exceptions into pex as uint32_t[].
+//
+// When start > UINT32_MAX, the fused SIMD D1 path would truncate the carry.
+// In that case, we return nullptr to signal the caller to fall back to a
+// multi-phase approach (SIMD unpack + scalar exception patch + scalar delta1).
 const unsigned char *
 bitd1unpack128v64_ex(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start, const uint64_t * bitmap, const uint32_t *& pex)
 {
+    if (start > UINT32_MAX)
+        return nullptr; // Signal caller to use scalar fallback
+
     __m128i sv = _mm_set1_epi32(static_cast<uint32_t>(start));
     const unsigned char * result;
 
