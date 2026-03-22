@@ -1915,9 +1915,27 @@ unsigned runBinaryCompatibility256v64Test()
             {"random_bw" + std::to_string(bw), [max_val](std::vector<uint64_t> & d, std::mt19937_64 & r) { fillRandom64(d, max_val, r); }});
     }
 
+    // Exception patterns with values fitting in 32 bits
+    patterns.push_back(
+        {"exceptions_5pct_32b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) { fillWithExceptions64(d, 255ull, 100000ull, 5u, r); }});
+    patterns.push_back({"exceptions_10pct_32b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                            fillWithExceptions64(d, 255ull, 100000ull, 10u, r);
+                        }});
+    patterns.push_back({"exceptions_25pct_32b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                            fillWithExceptions64(d, 255ull, 100000ull, 25u, r);
+                        }});
+
+    // Exception patterns with 64-bit exception values
+    patterns.push_back({"exceptions_5pct_64b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
+                            fillWithExceptions64(d, 255ull, 0x100000000ull, 5u, r);
+                        }});
     patterns.push_back({"exceptions_10pct_64b", [](std::vector<uint64_t> & d, std::mt19937_64 & r) {
                             fillWithExceptions64(d, 255ull, 0x100000000ull, 10u, r);
                         }});
+
+    // Edge case: values requiring exactly 63 bits (tests 63→64 quirk)
+    patterns.push_back(
+        {"random_bw63_large", [](std::vector<uint64_t> & d, std::mt19937_64 & r) { fillRandom64(d, 0x7FFFFFFFFFFFFFFFull, r); }});
 
     for (const auto & pattern : patterns)
     {
@@ -1965,6 +1983,44 @@ unsigned runBinaryCompatibility256v64Test()
                     ++failed;
                     ok = false;
                     break;
+                }
+            }
+        }
+
+        // Also test delta1 decode with non-zero start value (tests carry propagation)
+        if (ok)
+        {
+            const uint64_t start_val = 1000000ull;
+            std::vector<uint64_t> out_d1_nonzero(n, 0ull);
+            std::vector<uint64_t> out_d1_nonzero_scalar(n, 0ull);
+
+            turbopfor::p4D1Dec256v64(enc_buf.data(), n, out_d1_nonzero.data(), start_val);
+            turbopfor::scalar::p4D1Dec256v64(enc_buf.data(), n, out_d1_nonzero_scalar.data(), start_val);
+
+            if (!std::equal(out_d1_nonzero.begin(), out_d1_nonzero.end(), out_d1_nonzero_scalar.begin()))
+            {
+                std::fprintf(
+                    stderr, "FAIL [n=%u %s]: delta1 decode (start=%llu) mismatch top-level vs scalar\n", n, pattern.name.c_str(),
+                    static_cast<unsigned long long>(start_val));
+                ++failed;
+                ok = false;
+            }
+            else
+            {
+                uint64_t acc2 = start_val;
+                for (unsigned i = 0; ok && i < n; ++i)
+                {
+                    acc2 += input[i] + 1ull;
+                    if (out_d1_nonzero[i] != acc2)
+                    {
+                        std::fprintf(
+                            stderr, "FAIL [n=%u %s]: delta1 roundtrip (start=%llu) mismatch at %u: got=0x%016llX expected=0x%016llX\n",
+                            n, pattern.name.c_str(), static_cast<unsigned long long>(start_val), i,
+                            static_cast<unsigned long long>(out_d1_nonzero[i]), static_cast<unsigned long long>(acc2));
+                        ++failed;
+                        ok = false;
+                        break;
+                    }
                 }
             }
         }
