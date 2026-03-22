@@ -24,7 +24,7 @@
 
 | Task | Title | Status | Inspector Notes |
 |------|-------|--------|-----------------|
-| 04 | SIMD 256v64 Gate or Optimize | Completed | Decision: gate SIMD off for all 64-bit decode. Found pre-existing pair-swap bug in STO64 decode (outputs [v2,v3,v0,v1] instead of [v0,v1,v2,v3]). Fixed 32-bit start truncation in bitunpackD1_128v64. Benchmark: scalar 256v64 decode within 0-1.3% of C reference for exception cases. All 12 suites 0 failures. |
+| 04 | SIMD 256v64 Gate or Optimize | Completed | Verified: SIMD gated off for all 64-bit decode (pair-swap bug in STO64 + 32-bit start truncation). Dispatch routes 128v64+256v64 decode to scalar, SIMD 128v64 encode remains enabled. Decision well-documented in dispatch.cpp comments. Build clean, all 12 suites 0 failures. |
 
 **Phase Status**: Completed
 
