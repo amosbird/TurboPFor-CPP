@@ -14,7 +14,7 @@
 
 | Task | Title | Status | Inspector Notes |
 |------|-------|--------|-----------------|
-| 01 | Stabilize 256v64 Scalar Correctness Baseline | Completed | |
+| 01 | Stabilize 256v64 Scalar Correctness Baseline | Completed | Verified: build clean, 0 test failures across all 12 suites, delta1 carry propagation correct |
 | 02 | Wire Public API, Dispatch, and Build for 256v64 | Not Started | |
 | 03 | Add/Adjust 256v64 Tests and Benchmark Mode | Not Started | |
 
