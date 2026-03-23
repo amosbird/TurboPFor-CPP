@@ -167,7 +167,7 @@ The 3 failing scenarios are due to structural format differences, not implementa
 | Phase 1 | 3/3 | All criteria met | Phase Inspector | 2026-03-22 | ✅ PASSED |
 | Phase 2 | 1/1 | All criteria met: SIMD gated off with documented rationale, dispatch correct, build clean, 12/12 suites pass | Phase Inspector | 2026-03-22 | ✅ PASSED |
 | Phase 3 | 1/1 | Phase Inspector verified: build clean, 12/12 suites 0 failures (independently re-run), benchmark data complete with decode+encode tables, 128v64 regression check present, 04-commit-msg.md exists, specification success criteria all met, no TODOs/FIXMEs in source. | Phase Inspector | 2026-03-22 | ✅ PASSED |
-| Phase 4 | 3/3 | 27/30 decode scenarios ≥ scalar64 baseline. 3 structural hard blockers documented with root cause analysis. All 12 test suites 0 failures. | Task Inspector | 2026-03-23 | ✅ PASSED |
+| Phase 4 | 3/3 | Phase Inspector independently verified: build clean, 12/12 suites 0 failures (72,969 tests), spot-check benchmarks confirm bw=1 decode +7-17%, bw=48 decode +5-12%, bw=16 random -24% (matches documented hard blocker). 128v64 regression check clean (+6-14% decode with exceptions). No TODOs/FIXMEs in source. 27/30 decode scenarios ≥ scalar64 baseline. | Phase Inspector | 2026-03-23 | ✅ PASSED |
 
 ---
 
