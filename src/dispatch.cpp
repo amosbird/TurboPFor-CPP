@@ -68,10 +68,12 @@ unsigned char * p4D1Dec64(unsigned char * in, unsigned n, uint64_t * out, uint64
     return turbopfor::scalar::p4D1Dec64(in, n, out, start);
 }
 
-// p4enc128v64 uses SIMD if available (encode is correct and byte-compatible).
-// p4dec128v64 and p4d1dec128v64 use scalar only — the SIMD decode path has a
-// pre-existing pair-swap bug: the STO64 fused unpack does NOT reverse the IP32
-// reordering, producing output in [v2,v3,v0,v1] order instead of [v0,v1,v2,v3].
+// p4enc128v64 and p4dec128v64/p4d1dec128v64 use SIMD if available.
+// The STO64 pair-swap bug has been fixed (IP32 reordering is now reversed
+// in all decode templates via _mm_shuffle_epi32 before output).
+// The 64-bit start value handling uses a safe fallback: when start > UINT32_MAX,
+// the fused D1 path (which uses 32-bit prefix sum) falls back to SIMD unpack +
+// scalar delta1, avoiding truncation.
 unsigned char * p4Enc128v64(uint64_t * in, unsigned n, unsigned char * out)
 {
 #ifdef ENABLE_SSE42
@@ -83,42 +85,50 @@ unsigned char * p4Enc128v64(uint64_t * in, unsigned n, unsigned char * out)
 
 unsigned char * p4Dec128v64(unsigned char * in, unsigned n, uint64_t * out)
 {
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4Dec128v64(in, n, out);
+#else
     return turbopfor::scalar::p4Dec128v64(in, n, out);
+#endif
 }
 
 unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
 {
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4D1Dec128v64(in, n, out, start);
+#else
     return turbopfor::scalar::p4D1Dec128v64(in, n, out, start);
+#endif
 }
 
-// 256v64 functions always use scalar implementation.
-//
-// SIMD cannot be used here due to a pre-existing architectural issue in the
-// SIMD 128v64 decode path: the STO64 fused unpack does NOT reverse the IP32
-// pair-swap reordering ([v2,v3,v0,v1] → [v0,v1,v2,v3]). This causes:
-//   1. p4Dec128v64 (SIMD) returns pair-swapped output vs scalar
-//   2. p4D1Dec128v64 (SIMD) prefix sums pair-swapped deltas, producing wrong results
-//
-// The SIMD 128v64 *encode* is correct (verified byte-identical with scalar/C).
-// The bug only affects decode paths. Until the STO64 templates are fixed to
-// reverse the pair-swap, all 256v64 (and 128v64) decode must go through scalar.
-//
-// Additionally, the SIMD D1 path truncates the 64-bit start value to 32 bits
-// via _mm_set1_epi32. This was partially fixed (fallback to scalar when
-// start > UINT32_MAX), but the pair-swap issue is the primary blocker.
+// 256v64 functions use SIMD (SSE4.2) if available, otherwise scalar.
+// The 256v64 decode wraps 128v64 decode (2× blocks), which now uses the
+// corrected SIMD path with the pair-swap fix.
 unsigned char * p4Enc256v64(uint64_t * in, unsigned n, unsigned char * out)
 {
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4Enc256v64(in, n, out);
+#else
     return turbopfor::scalar::p4Enc256v64(in, n, out);
+#endif
 }
 
 unsigned char * p4Dec256v64(unsigned char * in, unsigned n, uint64_t * out)
 {
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4Dec256v64(in, n, out);
+#else
     return turbopfor::scalar::p4Dec256v64(in, n, out);
+#endif
 }
 
 unsigned char * p4D1Dec256v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
 {
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4D1Dec256v64(in, n, out, start);
+#else
     return turbopfor::scalar::p4D1Dec256v64(in, n, out, start);
+#endif
 }
 
 } // namespace turbopfor

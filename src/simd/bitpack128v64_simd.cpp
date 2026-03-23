@@ -158,9 +158,15 @@ unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, uns
     {
         const unsigned char * ip_end = in + (V128_64_BLOCK_SIZE * b + 7u) / 8u;
 
-        if (start <= UINT32_MAX)
+        // The fused SIMD D1 path uses 32-bit prefix sum (_mm_add_epi32).
+        // The accumulated carry can overflow 32 bits if start + sum_of_deltas + count > UINT32_MAX.
+        // Maximum possible sum: start + 128 * ((1 << b) - 1) + 128 (delta1 +1 per element).
+        // Use the fused path only when this cannot overflow.
+        const uint64_t max_sum = start + static_cast<uint64_t>(V128_64_BLOCK_SIZE) * (b == 32 ? 0xFFFFFFFFULL : ((1ULL << b) - 1ULL))
+                                 + V128_64_BLOCK_SIZE;
+        if (max_sum <= UINT32_MAX)
         {
-            // Fast path: start fits in 32 bits, fused SIMD D1 prefix scan is exact
+            // Fast path: fused SIMD D1 prefix scan is exact (no 32-bit overflow)
             __m128i sv = _mm_set1_epi32(static_cast<uint32_t>(start));
 
 #define CALL_STO64_D1(B) bitunpack_sse_sto64_d1_hybrid_entry<B, V128_64_BLOCK_SIZE>(in, out, sv)
@@ -169,9 +175,8 @@ unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, uns
         }
         else
         {
-            // Safe path: start exceeds 32 bits. The fused SIMD D1 path uses
-            // _mm_add_epi32 which would truncate the carry. Instead, unpack
-            // with SIMD (no D1), then apply 64-bit delta1 scalar.
+            // Safe path: carry could exceed 32 bits. Unpack with SIMD (no D1),
+            // then apply 64-bit delta1 scalar.
             bitunpack128v64(in, out, b);
             applyDelta1_64(out, V128_64_BLOCK_SIZE, start);
         }
@@ -211,9 +216,9 @@ bitunpack_sse_sto64_d1_ex_hybrid_entry(const unsigned char * in, uint64_t * out,
 // Returns: pointer past the consumed base-value bitstream.
 // Caller must have already unpacked exceptions into pex as uint32_t[].
 //
-// When start > UINT32_MAX, the fused SIMD D1 path would truncate the carry.
-// In that case, we return nullptr to signal the caller to fall back to a
-// multi-phase approach (SIMD unpack + scalar exception patch + scalar delta1).
+// When the accumulated carry could overflow 32 bits, returns nullptr to signal
+// the caller to fall back to multi-phase (SIMD unpack + scalar patch + scalar delta1).
+// The caller should check overflow conditions before calling this function.
 const unsigned char *
 bitd1unpack128v64_ex(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start, const uint64_t * bitmap, const uint32_t *& pex)
 {

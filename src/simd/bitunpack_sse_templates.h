@@ -351,9 +351,13 @@ struct UnpackStepSSE_STO64
             }
         }
 
+        // Reverse IP32 pair-swap: the encoded order is [v2,v3,v0,v1] due to the
+        // IP32 shuffle in encode. Swap pairs back to get [v0,v1,v2,v3].
+        ov = _mm_shuffle_epi32(ov, _MM_SHUFFLE(1, 0, 3, 2));
+
         // STO64: zero-extend 4×uint32 → 4×uint64 via two stores
-        // ov = [a, b, c, d] (4×32-bit)
-        // → [a, 0, b, 0] then [c, 0, d, 0] (2×__m128i, each 2×64-bit)
+        // ov = [v0, v1, v2, v3] (4×32-bit, now in correct order)
+        // → [v0, 0, v1, 0] then [v2, 0, v3, 0] (2×__m128i, each 2×64-bit)
         _mm_storeu_si128(op++, _mm_unpacklo_epi32(ov, zv));
         _mm_storeu_si128(op++, _mm_unpackhi_epi32(ov, zv));
 
@@ -451,6 +455,10 @@ struct UnpackStepSSE_STO64_D1
             }
         }
 
+        // Reverse IP32 pair-swap before prefix sum: encoded order is [d2,d3,d0,d1],
+        // need [d0,d1,d2,d3] for correct delta accumulation.
+        ov = _mm_shuffle_epi32(ov, _MM_SHUFFLE(1, 0, 3, 2));
+
         // Delta1 prefix sum (mm_scani_epi32 equivalent):
         // 1. In-lane prefix sum: [a, a+b, a+b+c, a+b+c+d]
         ov = _mm_add_epi32(ov, _mm_slli_si128(ov, 4));
@@ -458,8 +466,7 @@ struct UnpackStepSSE_STO64_D1
         // 2. Add carry from previous group + delta1 offset cv
         ov = _mm_add_epi32(ov, _mm_add_epi32(sv, cv));
 
-        // STO64: zero-extend low half and store first (matches TurboPFor C scheduling:
-        // start store pipeline before carry extraction to overlap with prefix scan)
+        // STO64: zero-extend and store (values now in correct order)
         _mm_storeu_si128(op++, _mm_unpacklo_epi32(ov, zv));
         // 3. Update carry: broadcast last element (between the two stores)
         sv = _mm_shuffle_epi32(ov, 0xFF);
@@ -605,6 +612,9 @@ struct UnpackPeriodStepSSE_STO64_D1
                 ov = _mm_and_si128(ov, mask);
             }
         }
+
+        // Reverse IP32 pair-swap before prefix sum
+        ov = _mm_shuffle_epi32(ov, _MM_SHUFFLE(1, 0, 3, 2));
 
         // Delta1 prefix sum
         ov = _mm_add_epi32(ov, _mm_slli_si128(ov, 4));
@@ -797,6 +807,9 @@ ALWAYS_INLINE const unsigned char * bitunpack_sse_sto64_d1_loop_entry(const unsi
             }
             // B == 32: no masking needed (full 32-bit word)
 
+            // Reverse IP32 pair-swap before prefix sum
+            ov = _mm_shuffle_epi32(ov, _MM_SHUFFLE(1, 0, 3, 2));
+
             // Delta1 prefix sum (mm_scani_epi32 equivalent)
             ov = _mm_add_epi32(ov, _mm_slli_si128(ov, 4));
             ov = _mm_add_epi32(ov, _mm_slli_si128(ov, 8));
@@ -866,6 +879,10 @@ struct UnpackStepSSE_STO64_D1_EX
             }
         }
 
+        // Reverse IP32 pair-swap: must happen before exception patching and delta1,
+        // since the bitmap positions correspond to logical output order.
+        ov = _mm_shuffle_epi32(ov, _MM_SHUFFLE(1, 0, 3, 2));
+
         // Exception patching via SSSE3 shuffle (same as 32-bit patching path)
         // Bitmap layout: 2 x 64-bit words for 128 values, 4 bits per group of 4
         {
@@ -899,7 +916,6 @@ struct UnpackStepSSE_STO64_D1_EX
         ov = _mm_add_epi32(ov, _mm_add_epi32(sv, cv));
 
         // STO64: store low half first, then carry extract, then high half
-        // (matches TurboPFor C scheduling to overlap carry extraction with stores)
         _mm_storeu_si128(op++, _mm_unpacklo_epi32(ov, zv));
         sv = _mm_shuffle_epi32(ov, 0xFF);
         _mm_storeu_si128(op++, _mm_unpackhi_epi32(ov, zv));
@@ -1047,6 +1063,9 @@ struct UnpackPeriodStepSSE_STO64_D1_EX
                 ov = _mm_and_si128(ov, mask);
             }
         }
+
+        // Reverse IP32 pair-swap before exception patching and delta1
+        ov = _mm_shuffle_epi32(ov, _MM_SHUFFLE(1, 0, 3, 2));
 
         // Exception patching: use absolute group index for bitmap
         {
@@ -1264,6 +1283,9 @@ bitunpack_sse_sto64_d1_ex_loop_entry(const unsigned char * in, uint64_t * out, _
                     ov = _mm_and_si128(ov, mask);
                 }
             }
+
+            // Reverse IP32 pair-swap before exception patching and delta1
+            ov = _mm_shuffle_epi32(ov, _MM_SHUFFLE(1, 0, 3, 2));
 
             // Exception patching
             {

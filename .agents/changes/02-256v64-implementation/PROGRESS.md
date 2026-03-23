@@ -4,7 +4,7 @@
 **Started**: 2026-03-22
 **Last Updated**: 2026-03-22
 **HITL Mode**: false
-**Current Phase**: Phase 3 (Completed)
+**Current Phase**: Phase 4
 
 ---
 
@@ -35,6 +35,16 @@
 | 05 | Final Verification and Summary | Completed | All tests pass (12/12 suites, 0 failures). Benchmark results documented. 128v64 path shows no regression. |
 
 **Phase Status**: Completed
+
+### Phase 4: Decode Performance Push (Updated Goal)
+
+| Task | Title | Status | Inspector Notes |
+|------|-------|--------|-----------------|
+| 06 | Fix SIMD 64-bit Decode Correctness (Ungate Candidate) | Completed | Fixed STO64 pair-swap bug (added shuffle reversal in all 7 decode templates), fixed 32-bit carry overflow guard in D1 prefix sum (proper max_sum check), updated dispatch to route 128v64+256v64 decode through SIMD, updated tests to compare SIMD vs scalar. Build clean, 12/12 suites 0 failures. |
+| 07 | Optimize 256v64 Decode to Beat Scalar64 Baseline Across Scenarios | Not Started | |
+| 08 | Final Performance Verification for Updated Target | Not Started | |
+
+**Phase Status**: In Progress
 
 ---
 
@@ -112,11 +122,11 @@ Performance vs C reference (`p4enc64`/`p4d1dec64`) across scenarios:
 
 ## Completion Summary
 
-- **Total Tasks**: 5
-- **Completed**: 5
+- **Total Tasks**: 8
+- **Completed**: 6
 - **Incomplete**: 0
 - **In Progress**: 0
-- **Remaining**: 0
+- **Remaining**: 2
 
 ---
 
@@ -127,12 +137,13 @@ Performance vs C reference (`p4enc64`/`p4d1dec64`) across scenarios:
 | Phase 1 | 3/3 | All criteria met | Phase Inspector | 2026-03-22 | ✅ PASSED |
 | Phase 2 | 1/1 | All criteria met: SIMD gated off with documented rationale, dispatch correct, build clean, 12/12 suites pass | Phase Inspector | 2026-03-22 | ✅ PASSED |
 | Phase 3 | 1/1 | Phase Inspector verified: build clean, 12/12 suites 0 failures (independently re-run), benchmark data complete with decode+encode tables, 128v64 regression check present, 04-commit-msg.md exists, specification success criteria all met, no TODOs/FIXMEs in source. | Phase Inspector | 2026-03-22 | ✅ PASSED |
+| Phase 4 | - | pending | pending | pending | In Progress |
 
 ---
 
-## Overall Project Status: ✅ COMPLETE
+## Overall Project Status: 🔄 IN PROGRESS (Updated Goal)
 
-The 256v64 implementation is fully functional with:
+The 256v64 implementation remains fully functional with:
 1. **Correct scalar encode/decode** — 2×128v64 block strategy, all edge cases covered
 2. **Public API wired** — `p4Enc256v64`, `p4Dec256v64`, `p4D1Dec256v64` in `turbopfor.h`
 3. **Dispatch routing** — Scalar-only for all 64-bit decode (SIMD gated off due to known bugs)
@@ -140,12 +151,10 @@ The 256v64 implementation is fully functional with:
 5. **Benchmark mode** — `--simd256v64d1` A/B comparison functional
 6. **Performance baseline** — Scalar decode within ±5% of C reference for exception-heavy workloads; encode ~20% slower (acceptable for scalar path; SIMD optimization is future work)
 
-### Stage Target Assessment
-- **Target**: Beat internal scalar64 baseline → **MET for decode with exceptions**
-- **Decode with ≥30% exceptions**: -0.6% to +6.7% vs C reference (near or better)
-- **Decode pure random**: -23% to -61% (expected; C ref has SIMD advantage)
-- **Encode all scenarios**: -16% to -28% (expected for scalar-only)
-- **SIMD acceleration**: Deferred — pair-swap bug in STO64 templates needs dedicated fix
+### Updated Stage Target Assessment
+- **New Target**: Decode all key scenarios >= scalar64 baseline (random/10/30/50/80%) on core bitwidths.
+- Current status before Phase 4 work: **NOT MET** (random and some low-exception scenarios lag).
+- Phase 4 focuses on SIMD decode correctness + performance to close this gap.
 
 ---
 
@@ -160,3 +169,5 @@ The 256v64 implementation is fully functional with:
 | 2026-03-22 | 03 | Completed | Craftsman Coder | Enhanced 256v64 test coverage: added 5 exception/edge patterns (23 total, matching 128v64 parity), added non-zero start delta1 test, verified benchmark --simd256v64d1 mode works, all 12 suites pass (0 failures) |
 | 2026-03-22 | 04 | Completed | Craftsman Coder | Gate SIMD off for all 64-bit decode: discovered pair-swap bug in STO64 decode templates, fixed 32-bit start truncation in bitunpackD1_128v64 (fallback when start>UINT32_MAX), fixed bitd1unpack128v64_ex (returns nullptr for large start, caller falls back to multi-phase), updated dispatch to route 128v64+256v64 decode to scalar. Benchmarked: scalar 256v64 within 0-1.3% of C reference for decode with exceptions. All 12 suites 0 failures. |
 | 2026-03-22 | 05 | Completed | Craftsman Coder | Final verification: build clean, 12/12 test suites pass (0 failures), full benchmark results documented, 128v64 no regression confirmed, stage target met for exception-heavy decode workloads |
+| 2026-03-23 | - | Scope updated | Ralph Orchestrator | User requested continuation because target not reached. Added Phase 4 tasks (06-08) for SIMD decode correctness + full-scenario decode performance goal. |
+| 2026-03-23 | 06 | Completed | Craftsman Coder | Fixed STO64 pair-swap bug in 7 decode template locations (added _mm_shuffle_epi32 reversal), fixed 32-bit carry overflow guard in bitunpackD1_128v64 (proper max_sum check instead of start>UINT32_MAX), updated dispatch.cpp to route 128v64+256v64 decode through SIMD, updated tests to compare SIMD vs scalar decode. All 12 suites 0 failures. |

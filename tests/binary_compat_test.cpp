@@ -1844,24 +1844,57 @@ unsigned runBinaryCompatibility128v64Test()
                         }
                     }
 
-                    // Test our SIMD p4Dec128v64 (non-delta) matches C's p4dec128v64
+                    // Test our SIMD p4Dec128v64 (non-delta) matches our scalar p4Dec128v64.
+                    // Note: C's p4dec128v64 does NOT reverse the IP32 pair-swap, so it
+                    // produces [v2,v3,v0,v1] output. Our scalar and SIMD decoders both
+                    // reverse the pair-swap, producing correct [v0,v1,v2,v3] order.
                     if (ok)
                     {
                         std::vector<uint64_t> out_simd(alloc_n, 0ull);
+                        std::vector<uint64_t> out_scalar_nondelta(alloc_n, 0ull);
                         turbopfor::simd::p4Dec128v64(c_buf.data(), n, out_simd.data());
-                        if (!std::equal(out_simd.begin(), out_simd.begin() + n, out_c.begin()))
+                        turbopfor::scalar::p4Dec128v64(c_buf.data(), n, out_scalar_nondelta.data());
+                        if (!std::equal(out_simd.begin(), out_simd.begin() + n, out_scalar_nondelta.begin()))
                         {
-                            std::fprintf(stderr, "FAIL [n=%u %s]: SIMD p4Dec128v64 vs C p4dec128v64 mismatch\n", n, pattern.name.c_str());
+                            std::fprintf(stderr, "FAIL [n=%u %s]: SIMD p4Dec128v64 vs scalar p4Dec128v64 mismatch\n", n, pattern.name.c_str());
                             for (unsigned i = 0; i < n; ++i)
                             {
-                                if (out_simd[i] != out_c[i])
+                                if (out_simd[i] != out_scalar_nondelta[i])
                                 {
                                     std::fprintf(
                                         stderr,
-                                        "  first diff at index %u: simd=0x%016llX c=0x%016llX\n",
+                                        "  first diff at index %u: simd=0x%016llX scalar=0x%016llX\n",
                                         i,
                                         static_cast<unsigned long long>(out_simd[i]),
-                                        static_cast<unsigned long long>(out_c[i]));
+                                        static_cast<unsigned long long>(out_scalar_nondelta[i]));
+                                    break;
+                                }
+                            }
+                            ++failed;
+                            ok = false;
+                        }
+                    }
+
+                    // Test our SIMD p4D1Dec128v64 (delta1) matches our scalar p4D1Dec128v64
+                    if (ok)
+                    {
+                        std::vector<uint64_t> out_simd_d1(alloc_n, 0ull);
+                        std::vector<uint64_t> out_scalar_d1(alloc_n, 0ull);
+                        turbopfor::simd::p4D1Dec128v64(c_buf.data(), n, out_simd_d1.data(), 0ull);
+                        turbopfor::scalar::p4D1Dec128v64(c_buf.data(), n, out_scalar_d1.data(), 0ull);
+                        if (!std::equal(out_simd_d1.begin(), out_simd_d1.begin() + n, out_scalar_d1.begin()))
+                        {
+                            std::fprintf(stderr, "FAIL [n=%u %s]: SIMD p4D1Dec128v64 vs scalar p4D1Dec128v64 mismatch\n", n, pattern.name.c_str());
+                            for (unsigned i = 0; i < n; ++i)
+                            {
+                                if (out_simd_d1[i] != out_scalar_d1[i])
+                                {
+                                    std::fprintf(
+                                        stderr,
+                                        "  first diff at index %u: simd=0x%016llX scalar=0x%016llX\n",
+                                        i,
+                                        static_cast<unsigned long long>(out_simd_d1[i]),
+                                        static_cast<unsigned long long>(out_scalar_d1[i]));
                                     break;
                                 }
                             }
