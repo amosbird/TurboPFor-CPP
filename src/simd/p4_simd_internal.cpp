@@ -91,11 +91,14 @@ __attribute__((noinline)) void applyDelta1(uint32_t * out, unsigned n, uint32_t 
 
 __attribute__((noinline)) void applyDelta1_64(uint64_t * out, unsigned n, uint64_t start)
 {
-    // Delta1 decode for 64-bit values: out[i] = sum(in[0..i]) + (i+1) + start
-    // SSE2 only supports 32-bit integer ops natively, so 64-bit prefix sum is
-    // done with scalar code. The loop is simple enough that the compiler vectorizes well.
+    // Delta1 decode for 64-bit values: out[i] = sum(in[0..i]) + start + (i+1)
+    // Simple scalar loop — the compiler optimizes this well with 64-bit registers.
+    // SSE2 prefix sum for 64-bit gains little (only 2 lanes) and the _mm_set overhead
+    // offsets the benefit. The fused bitunpackd1_64Scalar path avoids calling this
+    // function entirely for the hot no-exception decode path.
+    uint64_t acc = start;
     for (unsigned i = 0; i < n; ++i)
-        out[i] = (start += out[i]) + (i + 1u);
+        out[i] = (acc += out[i]) + (i + 1u);
 }
 
 } // namespace turbopfor::simd::detail
