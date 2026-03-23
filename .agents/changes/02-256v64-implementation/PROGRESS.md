@@ -40,7 +40,7 @@
 
 | Task | Title | Status | Inspector Notes |
 |------|-------|--------|-----------------|
-| 06 | Fix SIMD 64-bit Decode Correctness (Ungate Candidate) | Completed | Fixed STO64 pair-swap bug (added shuffle reversal in all 7 decode templates), fixed 32-bit carry overflow guard in D1 prefix sum (proper max_sum check), updated dispatch to route 128v64+256v64 decode through SIMD, updated tests to compare SIMD vs scalar. Build clean, 12/12 suites 0 failures. |
+| 06 | Fix SIMD 64-bit Decode Correctness (Ungate Candidate) | Completed | Verified: STO64 pair-swap fix in all 7 decode templates, D1 overflow guard uses proper max_sum computation, dispatch routes 128v64+256v64 decode through SIMD, tests compare SIMD vs scalar directly. Build clean, 12/12 suites 0 failures. |
 | 07 | Optimize 256v64 Decode to Beat Scalar64 Baseline Across Scenarios | Not Started | |
 | 08 | Final Performance Verification for Updated Target | Not Started | |
 
