@@ -152,6 +152,18 @@ ALWAYS_INLINE const unsigned char * bitunpack_sse_sto64_d1_hybrid_entry(const un
         return bitunpack_sse_sto64_d1_periodic_entry<B, Count>(in, out, sv);
 }
 
+// Overflow-safe path: separated into its own noinline function to prevent
+// bloating the hot 32-bit fast path's L1i footprint. Uses template-based
+// periodic-unroll for compile-time shifts (same as 32-bit path) but with
+// 64-bit scalar accumulation to avoid overflow.
+__attribute__((noinline)) static void
+bitunpackD1_128v64_overflow(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start)
+{
+#define CALL_STO64_D1_64ACC(B) bitunpack_sse_sto64_d1_64acc_hybrid_entry<B, V128_64_BLOCK_SIZE>(in, out, start)
+    STO64_SWITCH(b, CALL_STO64_D1_64ACC);
+#undef CALL_STO64_D1_64ACC
+}
+
 unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start)
 {
     if (b <= 32u)
@@ -175,42 +187,7 @@ unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, uns
         }
         else
         {
-            // Safe path: carry could exceed 32 bits.
-            // For b=32: single-pass scalar decode with IP32 unshuffle.
-            // Each 128-bit stripe holds 4 × 32-bit deltas in IP32 pair-swapped
-            // order: [d2, d3, d0, d1]. Read with corrected indices for ordering.
-            //
-            // Delta1 decode: out[i] = start + sum(delta[0..i]) + (i+1)
-            //
-            // NOTE: This is ~29% slower than the C reference for the "random"
-            // (no-exception) case. The gap is structural: our 128v64 format
-            // stores data in IP32 pair-swapped order requiring out-of-order
-            // reads, while the C reference uses flat sequential format.
-            // With exceptions (10%+), we beat the C reference by +3-6%.
-            if (b == 32u)
-            {
-                const uint32_t * ip32 = reinterpret_cast<const uint32_t *>(in);
-                uint64_t acc = start;
-
-                for (unsigned g = 0; g < V128_64_BLOCK_SIZE / 4u; ++g)
-                {
-                    const unsigned base = g * 4u;
-                    // IP32 layout: [d2, d3, d0, d1] stored at offsets 0,1,2,3
-                    // Corrected order: d0=ip[2], d1=ip[3], d2=ip[0], d3=ip[1]
-                    out[base + 0] = (acc += ip32[2]) + (base + 1u);
-                    out[base + 1] = (acc += ip32[3]) + (base + 2u);
-                    out[base + 2] = (acc += ip32[0]) + (base + 3u);
-                    out[base + 3] = (acc += ip32[1]) + (base + 4u);
-                    ip32 += 4;
-                }
-            }
-            else
-            {
-                // General b < 32 overflow: SIMD unpack (vertical format)
-                // then scalar delta1 in a separate pass.
-                bitunpack128v64(in, out, b);
-                applyDelta1_64(out, V128_64_BLOCK_SIZE, start);
-            }
+            bitunpackD1_128v64_overflow(in, out, b, start);
         }
 
         return const_cast<unsigned char *>(ip_end);

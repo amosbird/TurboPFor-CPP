@@ -1325,6 +1325,161 @@ bitunpack_sse_sto64_d1_ex_loop_entry(const unsigned char * in, uint64_t * out, _
 }
 
 // ============================================================================
+// STO64-fused unpack + delta1 with 64-BIT ACCUMULATION:
+//
+// Same SIMD bitunpack as the 32-bit D1 variant, but uses scalar 64-bit prefix
+// sum instead of 32-bit SIMD prefix sum. This avoids overflow when
+// start + sum_of_deltas + count > UINT32_MAX (which happens for b>=25 with
+// random data, or any b with large start values).
+//
+// Uses periodic-unroll: for each group of 4 elements, the template does:
+//   1. SIMD unpack 4 × B-bit values (compile-time shifts, same as 32-bit path)
+//   2. IP32 pair-swap reversal
+//   3. Extract 4 scalars via _mm_cvtsi128_si32 / _mm_extract_epi32
+//   4. 64-bit scalar prefix sum accumulation
+//   5. SIMD store via _mm_set_epi64x + _mm_storeu_si128
+//
+// Performance is close to the 32-bit fused path since the bottleneck is
+// memory stores (2×128-bit per group = 32 bytes), not the prefix sum.
+// ============================================================================
+
+template <unsigned B, unsigned R, unsigned P, int RelLoadedIdx>
+struct UnpackPeriodStepSSE_STO64_D1_64ACC
+{
+    static ALWAYS_INLINE void
+    run(const __m128i *& ip, __m128i & iv, uint64_t *& op, const __m128i & mask, uint64_t & acc, unsigned & groupIdx)
+    {
+        constexpr unsigned RelBitPos = R * B;
+        constexpr int RelTargetIdx = static_cast<int>(RelBitPos / 32);
+        constexpr int Offset = RelBitPos % 32;
+        constexpr bool Spans = (Offset + B > 32) && (B < 32);
+
+        if (RelTargetIdx > RelLoadedIdx)
+        {
+            iv = _mm_loadu_si128(ip++);
+        }
+
+        __m128i ov;
+        if (Offset == 0)
+        {
+            ov = iv;
+        }
+        else
+        {
+            ov = _mm_srli_epi32(iv, Offset);
+        }
+
+        if (Spans)
+        {
+            iv = _mm_loadu_si128(ip++);
+            constexpr int BitsInFirst = 32 - Offset;
+            ov = _mm_or_si128(ov, _mm_and_si128(_mm_slli_epi32(iv, BitsInFirst), mask));
+        }
+        else
+        {
+            if (B != 32)
+            {
+                ov = _mm_and_si128(ov, mask);
+            }
+        }
+
+        // Reverse IP32 pair-swap
+        ov = _mm_shuffle_epi32(ov, _MM_SHUFFLE(1, 0, 3, 2));
+
+        // Extract 4 deltas as scalars, do 64-bit prefix sum
+        uint32_t d0 = static_cast<uint32_t>(_mm_cvtsi128_si32(ov));
+        uint32_t d1 = static_cast<uint32_t>(_mm_extract_epi32(ov, 1));
+        uint32_t d2 = static_cast<uint32_t>(_mm_extract_epi32(ov, 2));
+        uint32_t d3 = static_cast<uint32_t>(_mm_extract_epi32(ov, 3));
+
+        const unsigned base1 = groupIdx * 4u + 1u;
+        uint64_t v0 = (acc += d0) + base1;
+        uint64_t v1 = (acc += d1) + base1 + 1u;
+        uint64_t v2 = (acc += d2) + base1 + 2u;
+        uint64_t v3 = (acc += d3) + base1 + 3u;
+
+        // Store 4×64-bit output using SIMD (2 stores)
+        _mm_storeu_si128(reinterpret_cast<__m128i *>(op),
+                         _mm_set_epi64x(static_cast<int64_t>(v1), static_cast<int64_t>(v0)));
+        _mm_storeu_si128(reinterpret_cast<__m128i *>(op + 2),
+                         _mm_set_epi64x(static_cast<int64_t>(v3), static_cast<int64_t>(v2)));
+        op += 4;
+        ++groupIdx;
+
+        constexpr int NextRelLoadedIdx = Spans ? RelTargetIdx + 1 : RelTargetIdx;
+        UnpackPeriodStepSSE_STO64_D1_64ACC<B, R + 1, P, NextRelLoadedIdx>::run(ip, iv, op, mask, acc, groupIdx);
+    }
+};
+
+// Base case: end of period
+template <unsigned B, unsigned P, int RelLoadedIdx>
+struct UnpackPeriodStepSSE_STO64_D1_64ACC<B, P, P, RelLoadedIdx>
+{
+    static ALWAYS_INLINE void
+    run(const __m128i *&, __m128i &, uint64_t *&, const __m128i &, uint64_t &, unsigned &)
+    {
+    }
+};
+
+// Body: unroll one full period
+template <unsigned B>
+ALWAYS_INLINE void bitunpack_sse_sto64_d1_64acc_period_body(
+    const __m128i *& ip, __m128i & iv, uint64_t *& op, const __m128i & mask, uint64_t & acc, unsigned & groupIdx)
+{
+    constexpr unsigned P = PeriodLen<B>::value;
+    UnpackPeriodStepSSE_STO64_D1_64ACC<B, 0, P, -1>::run(ip, iv, op, mask, acc, groupIdx);
+}
+
+// Entry point for periodic-unroll STO64+D1 with 64-bit accumulation
+template <unsigned B, unsigned Count>
+ALWAYS_INLINE const unsigned char * bitunpack_sse_sto64_d1_64acc_entry(const unsigned char * in, uint64_t * out, uint64_t start)
+{
+    constexpr unsigned MaxG = Count / 4;
+    static_assert(Count % 4 == 0, "Count must be multiple of 4");
+
+    if constexpr (B == 0)
+    {
+        uint64_t acc = start;
+        for (unsigned i = 0; i < Count; ++i)
+            out[i] = ++acc + i;
+        return in;
+    }
+    else
+    {
+        const __m128i * ip = reinterpret_cast<const __m128i *>(in);
+        __m128i iv = _mm_setzero_si128();
+        uint64_t * op = out;
+        uint64_t acc = start;
+        unsigned groupIdx = 0;
+
+        constexpr uint32_t mask_val = MaskGenSSE<B>::value;
+        const __m128i mask = _mm_set1_epi32(static_cast<int>(mask_val));
+
+        constexpr unsigned P = PeriodLen<B>::value;
+        constexpr unsigned NumPeriods = MaxG / P;
+        static_assert(MaxG % P == 0, "MaxG must be divisible by period length P");
+
+        for (unsigned period = 0; period < NumPeriods; ++period)
+        {
+            bitunpack_sse_sto64_d1_64acc_period_body<B>(ip, iv, op, mask, acc, groupIdx);
+        }
+
+        return reinterpret_cast<const unsigned char *>(ip);
+    }
+}
+
+// Compile-time selector: use 64-bit accumulation for P > 2, fully-unrolled for P <= 2
+template <unsigned B, unsigned Count>
+ALWAYS_INLINE const unsigned char * bitunpack_sse_sto64_d1_64acc_hybrid_entry(const unsigned char * in, uint64_t * out, uint64_t start)
+{
+    constexpr unsigned P = PeriodLen<B>::value;
+    if constexpr (B == 0 || P <= 2)
+        return bitunpack_sse_sto64_d1_64acc_entry<B, Count>(in, out, start);
+    else
+        return bitunpack_sse_sto64_d1_64acc_entry<B, Count>(in, out, start);
+}
+
+// ============================================================================
 // Fused IP32 bitpack templates: single-pass encode for 128v64
 //
 // IP32 shuffle extracts the low 32 bits from 4 uint64_t values by loading
