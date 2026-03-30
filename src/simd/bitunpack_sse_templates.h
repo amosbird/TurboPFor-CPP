@@ -703,6 +703,123 @@ ALWAYS_INLINE const unsigned char * bitunpack_sse_sto64_d1_periodic_entry(const 
 }
 
 // ============================================================================
+// PERIODIC-UNROLL STO64 unpack (non-delta): analogous to the periodic D1
+// variant above, but without prefix-sum / carry tracking.
+//
+// The fully-unrolled bitunpack_sse_sto64_entry produces ~86KB total for the
+// 33-case switch, exceeding L1i.  This periodic variant reduces code size to
+// ~5-15KB while keeping identical instruction quality (immediate shifts, no
+// variable-shift instructions), exactly like the D1 periodic variant.
+// ============================================================================
+
+template <unsigned B, unsigned R, unsigned P, int RelLoadedIdx>
+struct UnpackPeriodStepSSE_STO64
+{
+    static ALWAYS_INLINE void
+    run(const __m128i *& ip, __m128i & iv, __m128i *& op, const __m128i & mask, const __m128i & zv)
+    {
+        constexpr unsigned RelBitPos = R * B;
+        constexpr int RelTargetIdx = static_cast<int>(RelBitPos / 32);
+        constexpr int Offset = RelBitPos % 32;
+        constexpr bool Spans = (Offset + B > 32) && (B < 32);
+
+        if (RelTargetIdx > RelLoadedIdx)
+        {
+            iv = _mm_loadu_si128(ip++);
+        }
+
+        __m128i ov;
+        if (Offset == 0)
+        {
+            ov = iv;
+        }
+        else
+        {
+            ov = _mm_srli_epi32(iv, Offset);
+        }
+
+        if (Spans)
+        {
+            iv = _mm_loadu_si128(ip++);
+            constexpr int BitsInFirst = 32 - Offset;
+            ov = _mm_or_si128(ov, _mm_and_si128(_mm_slli_epi32(iv, BitsInFirst), mask));
+        }
+        else
+        {
+            if (B != 32)
+            {
+                ov = _mm_and_si128(ov, mask);
+            }
+        }
+
+        ov = _mm_shuffle_epi32(ov, _MM_SHUFFLE(1, 0, 3, 2));
+
+        _mm_storeu_si128(op++, _mm_unpacklo_epi32(ov, zv));
+        _mm_storeu_si128(op++, _mm_unpackhi_epi32(ov, zv));
+
+        constexpr int NextRelLoadedIdx = Spans ? RelTargetIdx + 1 : RelTargetIdx;
+        UnpackPeriodStepSSE_STO64<B, R + 1, P, NextRelLoadedIdx>::run(ip, iv, op, mask, zv);
+    }
+};
+
+template <unsigned B, unsigned P, int RelLoadedIdx>
+struct UnpackPeriodStepSSE_STO64<B, P, P, RelLoadedIdx>
+{
+    static ALWAYS_INLINE void
+    run(const __m128i *&, __m128i &, __m128i *&, const __m128i &, const __m128i &)
+    {
+    }
+};
+
+template <unsigned B>
+ALWAYS_INLINE void bitunpack_sse_sto64_period_body(
+    const __m128i *& ip, __m128i & iv, __m128i *& op,
+    const __m128i & mask, const __m128i & zv)
+{
+    constexpr unsigned P = PeriodLen<B>::value;
+    UnpackPeriodStepSSE_STO64<B, 0, P, -1>::run(ip, iv, op, mask, zv);
+}
+
+template <unsigned B, unsigned Count>
+ALWAYS_INLINE const unsigned char * bitunpack_sse_sto64_periodic_entry(const unsigned char * in, uint64_t * out)
+{
+    constexpr unsigned MaxG = Count / 4;
+    static_assert(Count % 4 == 0, "Count must be multiple of 4");
+
+    __m128i * op = reinterpret_cast<__m128i *>(out);
+
+    if constexpr (B == 0)
+    {
+        const __m128i zero = _mm_setzero_si128();
+        for (unsigned i = 0; i < Count / 2; ++i)
+        {
+            _mm_storeu_si128(op++, zero);
+        }
+        return in;
+    }
+    else
+    {
+        const __m128i * ip = reinterpret_cast<const __m128i *>(in);
+        __m128i iv = _mm_setzero_si128();
+
+        constexpr uint32_t mask_val = MaskGenSSE<B>::value;
+        const __m128i mask = _mm_set1_epi32(static_cast<int>(mask_val));
+        const __m128i zv = _mm_setzero_si128();
+
+        constexpr unsigned P = PeriodLen<B>::value;
+        constexpr unsigned NumPeriods = MaxG / P;
+        static_assert(MaxG % P == 0, "MaxG must be divisible by period length P");
+
+        for (unsigned period = 0; period < NumPeriods; ++period)
+        {
+            bitunpack_sse_sto64_period_body<B>(ip, iv, op, mask, zv);
+        }
+
+        return reinterpret_cast<const unsigned char *>(ip);
+    }
+}
+
+// ============================================================================
 // LOOP-BASED STO64+D1 unpack: same semantics as UnpackStepSSE_STO64_D1 but
 // uses a runtime loop over the 32 groups instead of recursive template unrolling.
 //

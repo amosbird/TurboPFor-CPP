@@ -56,44 +56,28 @@ p4D1Dec128v64PayloadBitmap(const unsigned char * in, unsigned n, uint64_t * out,
 
     if (b + bx <= 32u)
     {
-        // FAST PATH: Fused single-pass (matches TurboPFor C's _bitd1unpack128v64)
-        //
-        // Unpack exceptions as uint32_t (since b+bx <= 32, they fit in 32 bits).
-        // Then fused: bitunpack + SSSE3 exception shuffle-merge + delta1 + STO64.
         alignas(16) uint32_t ex[MAX_VALUES + 64];
         const unsigned char * ex_end = scalar::detail::bitunpack32Scalar(const_cast<unsigned char *>(ip), exception_count, ex, bx);
 
-        // Build 4-bit-per-group bitmap for SSSE3 shuffle patching
-        // The bitmap[] is already in the right format for our template:
-        // bitmap[0] has bits 0-63, bitmap[1] has bits 64-127.
-        // The template reads 4-bit nibbles from these words.
-        // (This is exactly what UnpackStepSSE_STO64_D1_EX expects.)
-
+        // Try fused SIMD path: bitunpack + SSSE3 exception merge + delta1 + STO64
+        // Uses periodic template (smaller L1i footprint than fully-unrolled non-delta).
+        // Only works when start fits in 32-bit carry register.
         const uint32_t * pex = ex;
         const unsigned char * base_end = bitd1unpack128v64_ex(ex_end, out, b, start, bitmap, pex);
 
         if (base_end != nullptr)
             return base_end;
 
-        // Fallback: start > UINT32_MAX, fused D1 would truncate carry.
-        // Re-do with multi-phase approach: SIMD unpack + scalar patch + scalar delta1.
-        // We already have exceptions unpacked in ex[]; re-consume the base values.
+        // Overflow fallback: SIMD unpack + scalar patch + scalar delta1
         ip = bitunpack128v64(ex_end, out, b);
 
-        // Apply exception patches from the uint32_t exception array
         unsigned k = 0;
         for (unsigned i = 0; i < words; ++i)
         {
             uint64_t word = bitmap[i];
             while (word)
             {
-#if defined(__GNUC__) || defined(__clang__)
                 unsigned bit = static_cast<unsigned>(__builtin_ctzll(word));
-#else
-                unsigned bit = 0;
-                while (((word >> bit) & 1ull) == 0ull)
-                    ++bit;
-#endif
                 const unsigned idx = i * 64u + bit;
                 out[idx] |= static_cast<uint64_t>(ex[k++]) << b;
                 word &= word - 1ull;
@@ -108,7 +92,7 @@ p4D1Dec128v64PayloadBitmap(const unsigned char * in, unsigned n, uint64_t * out,
     // SLOW PATH: b+bx > 32, scalar multi-phase approach
 
     // Phase 2: Unpack exception values (scalar bitpack64)
-    uint64_t exceptions[MAX_VALUES + 64] = {0};
+    uint64_t exceptions[MAX_VALUES + 64];
     ip = scalar::detail::bitunpack64Scalar(const_cast<unsigned char *>(ip), exception_count, exceptions, bx);
 
     // Phase 3: Unpack base values (SIMD bitunpack128v64)

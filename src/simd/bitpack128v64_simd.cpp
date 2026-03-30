@@ -98,18 +98,24 @@ unsigned char * bitpack128v64(const uint64_t * in, unsigned char * out, unsigned
     return scalar::detail::bitpack64Scalar(in, V128_64_BLOCK_SIZE, out, b);
 }
 
-// Unpack 128 x 64-bit values from 128v64 hybrid format (SIMD)
-//
-// When b <= 32: uses fused STO64 switch dispatch — unpacks and zero-extends
-//   in a single pass, matching TurboPFor C's fused VO32→STO64 approach.
-// When b > 32: delegate to scalar bitunpack64
+// Compile-time selector: periodic for P > 2, fully-unrolled otherwise
+template <unsigned B, unsigned Count>
+ALWAYS_INLINE const unsigned char * bitunpack_sse_sto64_hybrid_entry(const unsigned char * in, uint64_t * out)
+{
+    constexpr unsigned P = PeriodLen<B>::value;
+    if constexpr (B == 0 || P <= 2)
+        return bitunpack_sse_sto64_entry<B, Count>(in, out);
+    else
+        return bitunpack_sse_sto64_periodic_entry<B, Count>(in, out);
+}
+
 unsigned char * bitunpack128v64(const unsigned char * in, uint64_t * out, unsigned b)
 {
     if (b <= 32u)
     {
         const unsigned char * end = in + (V128_64_BLOCK_SIZE * b + 7u) / 8u;
 
-#define CALL_STO64(B) bitunpack_sse_sto64_entry<B, V128_64_BLOCK_SIZE>(in, out)
+#define CALL_STO64(B) bitunpack_sse_sto64_hybrid_entry<B, V128_64_BLOCK_SIZE>(in, out)
         STO64_SWITCH(b, CALL_STO64);
 #undef CALL_STO64
 
@@ -152,16 +158,22 @@ ALWAYS_INLINE const unsigned char * bitunpack_sse_sto64_d1_hybrid_entry(const un
         return bitunpack_sse_sto64_d1_periodic_entry<B, Count>(in, out, sv);
 }
 
-// Overflow-safe path: separated into its own noinline function to prevent
-// bloating the hot 32-bit fast path's L1i footprint. Uses template-based
-// periodic-unroll for compile-time shifts (same as 32-bit path) but with
-// 64-bit scalar accumulation to avoid overflow.
+// Overflow-safe path: two-pass approach to avoid scalar extraction overhead.
+// Pass 1: SIMD non-delta unpack to 64-bit output (fast, pure SIMD).
+// Pass 2: tight sequential 64-bit prefix sum over L1-hot data.
 __attribute__((noinline)) static void
 bitunpackD1_128v64_overflow(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start)
 {
-#define CALL_STO64_D1_64ACC(B) bitunpack_sse_sto64_d1_64acc_hybrid_entry<B, V128_64_BLOCK_SIZE>(in, out, start)
-    STO64_SWITCH(b, CALL_STO64_D1_64ACC);
-#undef CALL_STO64_D1_64ACC
+#define CALL_STO64_NODELTA(B) bitunpack_sse_sto64_entry<B, V128_64_BLOCK_SIZE>(in, out)
+    STO64_SWITCH(b, CALL_STO64_NODELTA);
+#undef CALL_STO64_NODELTA
+
+    uint64_t acc = start;
+    for (unsigned i = 0; i < V128_64_BLOCK_SIZE; ++i)
+    {
+        acc += out[i] + 1;
+        out[i] = acc;
+    }
 }
 
 unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start)

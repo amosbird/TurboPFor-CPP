@@ -35,7 +35,7 @@ extern "C" unsigned char * bitunpack64(const unsigned char * in, unsigned n, uin
 extern "C" unsigned char * bitd1unpack64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b);
 extern "C" unsigned char * p4enc128v64(uint64_t * in, unsigned n, unsigned char * out);
 extern "C" unsigned char * p4dec128v64(unsigned char * in, unsigned n, uint64_t * out);
-extern "C" unsigned char * p4d1dec128v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
+
 extern "C" void bitd1dec64(uint64_t * p, unsigned n, uint64_t start);
 
 namespace turbopfor::scalar::detail
@@ -923,8 +923,9 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
             turbopfor::simd::p4Enc128v64(input_copy.data(), num_elements, our_buf);
             if (simd128v64d1)
             {
-                // Delta1 decode: C ref = p4d1dec128v64, Ours = p4D1Dec128v64
-                ::p4d1dec128v64(ref_buf, num_elements, out, 0ull);
+                // Delta1 decode: C ref = p4dec128v64 + bitd1dec64, Ours = p4D1Dec128v64
+                ::p4dec128v64(ref_buf, num_elements, out);
+                ::bitd1dec64(out, num_elements, 0ull);
                 turbopfor::simd::p4D1Dec128v64(our_buf, num_elements, out, 0ull);
             }
             else
@@ -998,7 +999,8 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
                 ::p4d1dec64(ref_buf, num_elements, out, 0ull);
             else if (simd128v64d1)
             {
-                ::p4d1dec128v64(ref_buf, num_elements, out, 0ull);
+                ::p4dec128v64(ref_buf, num_elements, out);
+                ::bitd1dec64(out, num_elements, 0ull);
             }
             else if (simd128v64)
                 ::p4dec128v64(ref_buf, num_elements, out);

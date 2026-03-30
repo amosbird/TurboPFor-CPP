@@ -187,7 +187,7 @@ add_library(turbopfor_ref_base
     ${TURBOPFOR_SOURCE_DIR}/lib/vp4d.c
     ${TURBOPFOR_SOURCE_DIR}/lib/transpose.c
 )
-target_compile_options(turbopfor_ref_base PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS} -w -DSSE2_ON -mssse3 -msse4.1 -msse4.2 -mpopcnt)
+target_compile_options(turbopfor_ref_base PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS} -w -Wno-error=incompatible-pointer-types -DSSE2_ON -mssse3 -msse4.1 -msse4.2 -mpopcnt)
 target_include_directories(turbopfor_ref_base SYSTEM PUBLIC ${TURBOPFOR_SOURCE_DIR}/lib/include_)
 
 # AVX2 reference library for 256v functions (p4enc256v32, p4d1dec256v32, etc.)
@@ -199,7 +199,7 @@ add_library(turbopfor_ref_avx2 OBJECT
     ${TURBOPFOR_SOURCE_DIR}/lib/vp4c.c
     ${TURBOPFOR_SOURCE_DIR}/lib/vp4d.c
 )
-target_compile_options(turbopfor_ref_avx2 PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS} -w -DSSE2_ON -mssse3 -msse4.1 -msse4.2 -mpopcnt -mavx2)
+target_compile_options(turbopfor_ref_avx2 PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS} -w -Wno-error=incompatible-pointer-types -DSSE2_ON -mssse3 -msse4.1 -msse4.2 -mpopcnt -mavx2)
 target_include_directories(turbopfor_ref_avx2 SYSTEM PUBLIC ${TURBOPFOR_SOURCE_DIR}/lib/include_)
 
 # Combined reference library
