@@ -29,6 +29,11 @@ void writeHeader(unsigned char *& out, unsigned b, unsigned bx)
     scalar::detail::writeHeader(out, b, bx);
 }
 
+void writeHeader64(unsigned char *& out, unsigned b, unsigned bx)
+{
+    scalar::detail::writeHeader64(out, b, bx);
+}
+
 __attribute__((noinline)) void applyDelta1(uint32_t * out, unsigned n, uint32_t start)
 {
     if (n == 0u)
@@ -82,6 +87,23 @@ __attribute__((noinline)) void applyDelta1(uint32_t * out, unsigned n, uint32_t 
         scalar_carry += out[j] + 1u;
         out[j] = scalar_carry;
     }
+}
+
+__attribute__((noinline)) void applyDelta1_64(uint64_t * out, unsigned n, uint64_t start)
+{
+    uint64_t * ip = out;
+    uint64_t * const end4 = out + (n & ~3u);
+    uint64_t * const end = out + n;
+
+    for (; ip != end4; ip += 4)
+    {
+        ip[0] = (start += ip[0] + 1);
+        ip[1] = (start += ip[1] + 1);
+        ip[2] = (start += ip[2] + 1);
+        ip[3] = (start += ip[3] + 1);
+    }
+    for (; ip != end; ++ip)
+        ip[0] = (start += ip[0] + 1);
 }
 
 } // namespace turbopfor::simd::detail

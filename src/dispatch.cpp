@@ -57,5 +57,78 @@ unsigned char * p4D1Dec256v32(unsigned char * in, unsigned n, uint32_t * out, ui
 #endif
 }
 
-}  // namespace turbopfor
+// p4enc64 and p4d1dec64 always use scalar versions
+unsigned char * p4Enc64(uint64_t * in, unsigned n, unsigned char * out)
+{
+    return turbopfor::scalar::p4Enc64(in, n, out);
+}
 
+unsigned char * p4D1Dec64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
+{
+    return turbopfor::scalar::p4D1Dec64(in, n, out, start);
+}
+
+// p4enc128v64 and p4dec128v64/p4d1dec128v64 use SIMD if available.
+// The STO64 pair-swap bug has been fixed (IP32 reordering is now reversed
+// in all decode templates via _mm_shuffle_epi32 before output).
+// The 64-bit start value handling uses a safe fallback: when start > UINT32_MAX,
+// the fused D1 path (which uses 32-bit prefix sum) falls back to SIMD unpack +
+// scalar delta1, avoiding truncation.
+unsigned char * p4Enc128v64(uint64_t * in, unsigned n, unsigned char * out)
+{
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4Enc128v64(in, n, out);
+#else
+    return turbopfor::scalar::p4Enc128v64(in, n, out);
+#endif
+}
+
+unsigned char * p4Dec128v64(unsigned char * in, unsigned n, uint64_t * out)
+{
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4Dec128v64(in, n, out);
+#else
+    return turbopfor::scalar::p4Dec128v64(in, n, out);
+#endif
+}
+
+unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
+{
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4D1Dec128v64(in, n, out, start);
+#else
+    return turbopfor::scalar::p4D1Dec128v64(in, n, out, start);
+#endif
+}
+
+// 256v64 functions use SIMD (SSE4.2) if available, otherwise scalar.
+// The 256v64 decode wraps 128v64 decode (2× blocks), which now uses the
+// corrected SIMD path with the pair-swap fix.
+unsigned char * p4Enc256v64(uint64_t * in, unsigned n, unsigned char * out)
+{
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4Enc256v64(in, n, out);
+#else
+    return turbopfor::scalar::p4Enc256v64(in, n, out);
+#endif
+}
+
+unsigned char * p4Dec256v64(unsigned char * in, unsigned n, uint64_t * out)
+{
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4Dec256v64(in, n, out);
+#else
+    return turbopfor::scalar::p4Dec256v64(in, n, out);
+#endif
+}
+
+unsigned char * p4D1Dec256v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
+{
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4D1Dec256v64(in, n, out, start);
+#else
+    return turbopfor::scalar::p4D1Dec256v64(in, n, out, start);
+#endif
+}
+
+} // namespace turbopfor

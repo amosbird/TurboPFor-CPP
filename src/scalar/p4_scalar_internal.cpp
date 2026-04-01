@@ -428,4 +428,276 @@ void writeHeader(unsigned char *& out, unsigned b, unsigned bx)
     }
 }
 
+// ===================== 64-bit variable-byte encoding =====================
+
+namespace
+{
+
+// Encode a single uint64_t value using variable-byte encoding scheme.
+//
+// Same structure as vbPut32 but with shifted thresholds for 64-bit:
+// VB_MAX=0xFD, VBSIZE=64, VBB2=6, VBB3=5
+//
+// 1-byte:  [0x00..0x97]                 for values [0, 152)
+// 2-byte:  [0x98..0xD7][data]           for values [152, 16536)
+// 3-byte:  [0xD8..0xF7][lo][hi]         for values [16536, 2113688)
+// Raw:     [0xF8..0xFD][3..8 raw bytes] for values [2113688, 2^64-1]
+//
+// Raw markers: 0xF8=3 bytes, 0xF9=4 bytes, ..., 0xFD=8 bytes
+void vbPut64(unsigned char *& out, uint64_t x)
+{
+    if (x < VBYTE64_THRESHOLD_2BYTE) // x < 152
+    {
+        *out++ = static_cast<uint8_t>(x);
+    }
+    else if (x < VBYTE64_THRESHOLD_3BYTE) // x < 16536
+    {
+        const unsigned delta = static_cast<unsigned>(x) - VBYTE64_THRESHOLD_2BYTE;
+        *out++ = static_cast<uint8_t>(VBYTE64_MARKER_2BYTE + (delta >> 8));
+        *out++ = static_cast<uint8_t>(delta & 0xFFu);
+    }
+    else if (x < VBYTE64_THRESHOLD_RAW) // x < 2113688
+    {
+        const unsigned delta = static_cast<unsigned>(x) - VBYTE64_THRESHOLD_3BYTE;
+        *out++ = static_cast<uint8_t>(VBYTE64_MARKER_3BYTE + (delta >> 16));
+        *out++ = static_cast<uint8_t>(delta & 0xFFu);
+        *out++ = static_cast<uint8_t>((delta >> 8) & 0xFFu);
+    }
+    else
+    {
+        // Raw encoding: determine number of bytes needed
+        // bsr64(x) returns highest set bit + 1, so (bsr64(x) + 7) / 8 = ceil(bits/8)
+        const unsigned b = (bsr64(x) + 7u) / 8u;
+        *out++ = static_cast<uint8_t>(VBYTE64_MARKER_RAW + (b - 3u));
+        // Store raw little-endian value (we write 8 bytes for simplicity, advance by b)
+        storeU64Fast(out, x);
+        out += b;
+    }
+}
+
+} // namespace
+
+unsigned char * vbEnc64(const uint64_t * in, unsigned n, unsigned char * out)
+{
+    unsigned char * op = out;
+    for (unsigned i = 0; i < n; ++i)
+        vbPut64(op, in[i]);
+
+    // Adaptive: if compression doesn't save at least 32 bytes, store uncompressed
+    if (op + 32 > out + n * sizeof(uint64_t))
+    {
+        *out = VBYTE_ESCAPE_UNCOMPRESSED;
+        copyU64ArrayToLe(out + 1, in, n);
+        return out + 1 + n * sizeof(uint64_t);
+    }
+
+    return op;
+}
+
+unsigned char * vbDec64(unsigned char * __restrict in, unsigned n, uint64_t * __restrict out)
+{
+    if (*in == VBYTE_ESCAPE_UNCOMPRESSED)
+    {
+        copyU64ArrayFromLe(out, in + 1, n);
+        return in + 1 + n * sizeof(uint64_t);
+    }
+
+    unsigned char * __restrict ip = in;
+    uint64_t * op = out;
+    uint64_t * const end8 = out + (n & ~7u);
+    uint64_t * const end = out + n;
+
+    for (; op != end8; op += 8)
+    {
+        ip = vbGet64Inline(ip, op[0]);
+        ip = vbGet64Inline(ip, op[1]);
+        ip = vbGet64Inline(ip, op[2]);
+        ip = vbGet64Inline(ip, op[3]);
+        ip = vbGet64Inline(ip, op[4]);
+        ip = vbGet64Inline(ip, op[5]);
+        ip = vbGet64Inline(ip, op[6]);
+        ip = vbGet64Inline(ip, op[7]);
+        __builtin_prefetch(ip + 1024, 0, 0);
+    }
+    for (; op != end; ++op)
+        ip = vbGet64Inline(ip, *op);
+
+    return ip;
+}
+
+// ===================== 64-bit P4 bit width selection =====================
+
+// P4 bit width selection for 64-bit values - determines optimal bit width
+// and exception handling strategy. Same algorithm as p4Bits32 but for 64-bit values.
+//
+// exception_bits encoding:
+// - 0: No exceptions (simple bitpacking)
+// - 1-63: Bitwise patching with patch_bits = exception_bits
+// - 65 (64+1): Variable-byte exception encoding
+// - 66 (64+2): Constant block optimization
+unsigned p4Bits64(const uint64_t * in, unsigned n, unsigned * out_exception_bits)
+{
+    // Phase 1: Fast scan for special cases
+    uint64_t bitwise_or = 0;
+    const uint64_t first_value = in[0];
+    unsigned equal_count = 0;
+
+    for (unsigned i = 0; i < n; ++i)
+    {
+        bitwise_or |= in[i];
+        equal_count += (in[i] == first_value);
+    }
+
+    if (bitwise_or == 0ull)
+    {
+        *out_exception_bits = 0u;
+        return 0u;
+    }
+
+    unsigned max_bits = bitWidth64(bitwise_or);
+
+    if (equal_count == n)
+    {
+        *out_exception_bits = MAX_BITS_64 + 2u;
+        return max_bits;
+    }
+
+    // Phase 2: Build bit width histogram
+    unsigned bit_width_count[MAX_BITS_64 + 8u] = {0};
+
+    for (unsigned i = 0; i < n; ++i)
+    {
+        ++bit_width_count[bitWidth64(in[i])];
+    }
+
+    // Variable-byte size accumulators (needs larger array for 64-bit)
+    unsigned vbyte_accumulator_storage[MAX_BITS_64 * 2u + 64u + 16u] = {0};
+    unsigned * vbyte_accumulator = vbyte_accumulator_storage + MAX_BITS_64 + 16u;
+
+    unsigned optimal_base_bits = max_bits;
+    unsigned exception_count = bit_width_count[max_bits];
+    unsigned min_size = pad8(n * max_bits) + 1u;
+
+    // Lambda: Update variable-byte size accumulators
+    // The breakpoints for 64-bit vbyte are derived from the encoding thresholds:
+    // - diff <= 7 bits: value < 152 -> 1 byte vbyte
+    // - diff <= 13 bits: value < 16536 -> 2 bytes vbyte
+    // - diff <= 20 bits: value < 2113688 -> 3 bytes vbyte
+    // - diff <= 24 bits: value < 16M -> 4 bytes (raw 3)
+    // - diff <= 32 bits: value < 4G -> 5 bytes (raw 4)
+    // - diff <= 40 bits: 6 bytes (raw 5)
+    // - diff <= 48 bits: 7 bytes (raw 6)
+    // - diff <= 56 bits: 8 bytes (raw 7)
+    // - diff <= 64 bits: 9 bytes (raw 8)
+    //
+    // For the cost estimation, we use the same simplified model as 32-bit:
+    // breakpoints at 7, 15, 19, 25 bits correspond to vbyte sizes 1, 2, 3, 4+ bytes
+    auto update_vbyte_accumulator = [&vbyte_accumulator](unsigned count, unsigned bits)
+    {
+        vbyte_accumulator[static_cast<int>(bits) - 7] += count;
+        vbyte_accumulator[static_cast<int>(bits) - 15] += count * 2u;
+        vbyte_accumulator[static_cast<int>(bits) - 19] += count * 3u;
+        vbyte_accumulator[static_cast<int>(bits) - 25] += count * 4u;
+    };
+
+    unsigned vbyte_size_accumulator = exception_count;
+    update_vbyte_accumulator(exception_count, max_bits);
+
+    unsigned use_vbyte_exceptions = 0;
+    const unsigned bitmap_bytes = pad8(n);
+
+    unsigned base_bits = max_bits - 1u;
+    while (true)
+    {
+        const unsigned patch_bits = max_bits - base_bits;
+
+        const unsigned vbyte_size = pad8(n * base_bits) + 2u + exception_count + vbyte_size_accumulator;
+        const unsigned patching_size = pad8(n * base_bits) + 2u + bitmap_bytes + pad8(exception_count * patch_bits);
+
+        if (patching_size < min_size && patching_size <= vbyte_size)
+        {
+            min_size = patching_size;
+            optimal_base_bits = base_bits;
+            use_vbyte_exceptions = 0;
+        }
+        else if (vbyte_size < min_size)
+        {
+            min_size = vbyte_size;
+            optimal_base_bits = base_bits;
+            use_vbyte_exceptions = 1;
+        }
+
+        if (base_bits == 0)
+            break;
+
+        exception_count += bit_width_count[base_bits];
+        vbyte_size_accumulator += bit_width_count[base_bits] + vbyte_accumulator[static_cast<int>(base_bits)];
+        update_vbyte_accumulator(bit_width_count[base_bits], base_bits);
+
+        --base_bits;
+    }
+
+    *out_exception_bits = use_vbyte_exceptions ? (MAX_BITS_64 + 1u) : (max_bits - optimal_base_bits);
+
+    // 64-bit quirk: b=63 is ambiguous with b=64 in the header (both encode as 63),
+    // so TurboPFor forces b=63 to b=64 with no exceptions. This ensures the decoder's
+    // 63→64 mapping always produces the correct result.
+    if (optimal_base_bits == 63u)
+    {
+        optimal_base_bits = 64u;
+        *out_exception_bits = 0u;
+    }
+
+    return optimal_base_bits;
+}
+
+// ===================== 64-bit P4 header writing =====================
+
+// Write P4 encoding header for 64-bit values.
+//
+// Same format as 32-bit writeHeader but with MAX_BITS_64 = 64 and the
+// critical 63->64 bit quirk: the header byte only has 6 bits for the
+// base bit width (values 0-63), so bit width 64 is encoded as 63.
+// The decoder must map 63 back to 64.
+//
+// Header encoding format:
+// 1. Simple bitpacking (bx = 0):
+//    [b] - Single byte (b clamped to 63 if b == 64)
+//
+// 2. Bitwise patching (bx = 1-63):
+//    [0x80 | b][bx] - Two bytes (b clamped to 63 if b == 64)
+//
+// 3. Variable-byte exceptions (bx = 65):
+//    [0x40 | b] - Single byte
+//
+// 4. Constant block (bx = 66):
+//    [0xC0 | b] - Single byte
+void writeHeader64(unsigned char *& out, unsigned b, unsigned bx)
+{
+    // Clamp bit width for header encoding: 64 maps to 63
+    // (only 6 bits available in header byte for base bit width)
+    const unsigned b_header = (b >= 64u) ? 63u : b;
+
+    if (bx == 0u)
+    {
+        *out++ = static_cast<unsigned char>(b_header);
+    }
+    else if (bx <= MAX_BITS_64)
+    {
+        *out++ = static_cast<unsigned char>(0x80u | b_header);
+        *out++ = static_cast<unsigned char>(bx);
+    }
+    else
+    {
+        const unsigned flag = (bx == MAX_BITS_64 + 1u) ? 0x40u : 0xC0u;
+        *out++ = static_cast<unsigned char>(flag | b_header);
+    }
+}
+
+void applyDelta1_256_64(uint64_t * out, unsigned n, uint64_t start)
+{
+    for (unsigned i = 0; i < n; ++i)
+        out[i] = (start += out[i]) + (i + 1u);
+}
+
 } // namespace turbopfor::scalar::detail

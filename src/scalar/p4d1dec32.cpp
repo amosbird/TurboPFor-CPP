@@ -135,6 +135,9 @@ unsigned char * p4D1DecPayloadExceptions(unsigned char * in, unsigned n, uint32_
 // Returns: Pointer to next byte after decoded data
 unsigned char * p4D1Dec32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start)
 {
+    if (n == 0u)
+        return in;
+
     using namespace turbopfor::scalar::detail;
 
     unsigned char * input_ptr = in;

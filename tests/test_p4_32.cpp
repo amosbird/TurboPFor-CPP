@@ -1,163 +1,5 @@
-#include "scalar/p4_scalar.h"
-#include "simd/p4_simd.h"
+#include "test_helpers.h"
 
-#include <algorithm>
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
-#include <functional>
-#include <random>
-#include <string>
-#include <vector>
-
-extern "C" unsigned char * p4enc32(uint32_t * in, unsigned n, unsigned char * out);
-extern "C" unsigned char * p4d1dec32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
-extern "C" unsigned char * p4enc128v32(uint32_t * in, unsigned n, unsigned char * out);
-extern "C" unsigned char * p4d1dec128v32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
-extern "C" unsigned char * p4enc256v32(uint32_t * in, unsigned n, unsigned char * out);
-extern "C" unsigned char * p4d1dec256v32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
-extern "C" unsigned char * bitpack32(unsigned * in, unsigned n, unsigned char * out, unsigned b);
-extern "C" unsigned char * bitunpack32(const unsigned char * in, unsigned n, uint32_t * out, unsigned b);
-extern "C" unsigned char * bitd1unpack32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b);
-
-namespace turbopfor::scalar::detail
-{
-unsigned char * bitpack32Scalar(const uint32_t * in, unsigned n, unsigned char * out, unsigned b);
-unsigned char * bitunpack32Scalar(unsigned char * in, unsigned n, uint32_t * out, unsigned b);
-unsigned char * bitunpackd1_32Scalar(unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b);
-}
-
-namespace
-{
-
-void fillSequential(std::vector<uint32_t> & data, uint32_t base, uint32_t step)
-{
-    for (size_t i = 0; i < data.size(); ++i)
-        data[i] = base + static_cast<uint32_t>(i) * step;
-}
-
-void fillRandom(std::vector<uint32_t> & data, uint32_t max_val, std::mt19937 & rng)
-{
-    std::uniform_int_distribution<uint32_t> dist(0u, max_val);
-    for (auto & v : data)
-        v = dist(rng);
-}
-
-void fillConstant(std::vector<uint32_t> & data, uint32_t value)
-{
-    for (auto & v : data)
-        v = value;
-}
-
-void fillWithExceptions(std::vector<uint32_t> & data, uint32_t base_max, uint32_t exc_value, unsigned exc_percent, std::mt19937 & rng)
-{
-    std::uniform_int_distribution<uint32_t> base_dist(0u, base_max);
-    std::uniform_int_distribution<unsigned> exc_dist(0u, 99u);
-
-    for (auto & v : data)
-    {
-        if (exc_dist(rng) < exc_percent)
-            v = exc_value;
-        else
-            v = base_dist(rng);
-    }
-}
-
-unsigned pad8(unsigned bits)
-{
-    return (bits + 7u) / 8u;
-}
-
-unsigned popcount64(uint64_t v)
-{
-#if defined(__GNUC__) || defined(__clang__)
-    return static_cast<unsigned>(__builtin_popcountll(v));
-#else
-    unsigned c = 0;
-    while (v)
-    {
-        v &= v - 1u;
-        ++c;
-    }
-    return c;
-#endif
-}
-
-void maskPaddingBits(unsigned char * buf, unsigned total_bits)
-{
-    unsigned rem = total_bits & 7u;
-    if (rem == 0u || total_bits == 0u)
-        return;
-
-    unsigned bytes = pad8(total_bits);
-    unsigned char mask = static_cast<unsigned char>((1u << rem) - 1u);
-    buf[bytes - 1] &= mask;
-}
-
-void normalizeP4Enc32(unsigned char * buf, unsigned n)
-{
-    if (n == 0u)
-        return;
-
-    unsigned b = buf[0];
-
-    if ((b & 0xC0u) == 0xC0u)
-        return;
-
-    if ((b & 0x40u) == 0u)
-    {
-        unsigned bx = 0u;
-        unsigned offset = 1u;
-        if (b & 0x80u)
-        {
-            bx = buf[1];
-            offset = 2u;
-        }
-        b &= 0x3Fu;
-
-        if (bx == 0u)
-        {
-            maskPaddingBits(buf + offset, n * b);
-            return;
-        }
-
-        if (bx <= 32u)
-        {
-            unsigned bitmap_bytes = pad8(n);
-            unsigned xn = 0u;
-            for (unsigned i = 0; i < bitmap_bytes; i += 8)
-            {
-                uint64_t word = 0;
-                unsigned chunk = (bitmap_bytes - i) < 8 ? (bitmap_bytes - i) : 8;
-                std::memcpy(&word, buf + offset + i, chunk);
-                xn += popcount64(word);
-            }
-
-            unsigned char * ex_pack = buf + offset + bitmap_bytes;
-            maskPaddingBits(ex_pack, xn * bx);
-            unsigned ex_bytes = pad8(xn * bx);
-            unsigned char * base_pack = ex_pack + ex_bytes;
-            maskPaddingBits(base_pack, n * b);
-            return;
-        }
-
-        return;
-    }
-
-    unsigned bx = buf[1];
-    unsigned offset = 2u;
-    b &= 0x3Fu;
-    (void)bx;
-    maskPaddingBits(buf + offset, n * b);
-}
-
-} // namespace
-
-//
-// Test 1: Binary Compatibility Test
-// Verifies C p4enc32/p4d1dec32 is compatible with C++ turbopfor::p4Enc32/p4D1Dec32
-// Tests n = 1 to 127
-//
 unsigned runBinaryCompatibilityTest()
 {
     std::mt19937 rng(42u);
@@ -318,7 +160,7 @@ unsigned runBinaryCompatibilityTest()
 // Test 2: Cross Validation Test (128v)
 // Verifies scalar p4Enc128v32/p4D1Dec128v32 matches SIMD and C reference
 // Tests n = 128 only
-//
+
 unsigned runCrossValidation128vTest()
 {
     std::mt19937 rng(42u);
@@ -502,7 +344,7 @@ unsigned runCrossValidation128vTest()
 // Test 3: Binary Compatibility Test (128v)
 // Verifies C p4enc128v32/p4d1dec128v32 is compatible with C++ turbopfor implementations
 // Tests n = 128 only
-//
+
 unsigned runBinaryCompatibility128vTest()
 {
     std::mt19937 rng(42u);
@@ -661,7 +503,7 @@ unsigned runBinaryCompatibility128vTest()
 //
 // Test 4: Bitunpack Compatibility Test
 // Verifies C bitunpack32 matches C++ turbopfor::scalar::detail::bitunpack32Scalar
-//
+
 unsigned runBitunpackCompatibilityTest()
 {
     std::mt19937 rng(42u);
@@ -760,7 +602,7 @@ unsigned runBitunpackCompatibilityTest()
 //
 // Test 5: BitunpackD1 Compatibility Test
 // Verifies C bitd1unpack matches C++ turbopfor::scalar::detail::bitunpackd1_32Scalar
-//
+
 unsigned runBitunpackD1CompatibilityTest()
 {
     std::mt19937 rng(42u);
@@ -849,7 +691,7 @@ unsigned runBitunpackD1CompatibilityTest()
 // Test 6: Cross Validation Test (256v)
 // Verifies scalar p4Enc256v32/p4D1Dec256v32 matches C reference (AVX2 TurboPFor)
 // Tests n = 256 only
-//
+
 unsigned runCrossValidation256vTest()
 {
     std::mt19937 rng(42u);
@@ -913,8 +755,7 @@ unsigned runCrossValidation256vTest()
         // Compare sizes
         if (scalar_len != c_len)
         {
-            std::fprintf(
-                stderr, "FAIL [n=%u %s]: size mismatch scalar=%zu C=%zu\n", n, pattern.name.c_str(), scalar_len, c_len);
+            std::fprintf(stderr, "FAIL [n=%u %s]: size mismatch scalar=%zu C=%zu\n", n, pattern.name.c_str(), scalar_len, c_len);
             ++failed;
             ok = false;
         }
@@ -1000,7 +841,7 @@ unsigned runCrossValidation256vTest()
 // Test 7: Binary Compatibility Test (256v)
 // Verifies C p4enc256v32/p4d1dec256v32 is compatible with C++ scalar implementation
 // Tests n = 256 only
-//
+
 unsigned runBinaryCompatibility256vTest()
 {
     std::mt19937 rng(42u);
@@ -1062,13 +903,7 @@ unsigned runBinaryCompatibility256vTest()
         bool ok = true;
         if (c_len != cxx_scalar_len)
         {
-            std::fprintf(
-                stderr,
-                "FAIL [n=%u %s]: size mismatch C=%zu scalar=%zu\n",
-                n,
-                pattern.name.c_str(),
-                c_len,
-                cxx_scalar_len);
+            std::fprintf(stderr, "FAIL [n=%u %s]: size mismatch C=%zu scalar=%zu\n", n, pattern.name.c_str(), c_len, cxx_scalar_len);
             ++failed;
             ok = false;
         }
@@ -1133,134 +968,4 @@ unsigned runBinaryCompatibility256vTest()
 // Test: Prototype Implementation Test
 // Verifies the prototype based on the spec can encode/decode correctly
 // by comparing against the C reference implementation
-//
-unsigned runPrototypeCompatibilityTest()
-{
-    return 0; // Skipped
-}
-/*
-unsigned runPrototypeCompatibilityTest_OLD()
-{
-    std::mt19937 rng(42u);
 
-    unsigned passed = 0;
-    unsigned failed = 0;
-
-    std::printf("=== Prototype Implementation Test ===\n");
-    std::printf("=== Verifying prototype matches C reference implementation ===\n");
-    std::printf("=== Testing various data patterns ===\n\n");
-
-    for (unsigned n : std::vector<unsigned>{1, 2, 4, 8, 16, 31, 32, 33, 63, 64, 65, 127, 128})
-    {
-        struct TestPattern
-        {
-            std::string name;
-            std::function<void(std::vector<uint32_t> &, std::mt19937 &)> fill;
-        };
-
-        std::vector<TestPattern> patterns;
-        patterns.push_back({"sequential", [](std::vector<uint32_t> & d, std::mt19937 &)
-            { fillSequential(d, 0u, 1u); }});
-        patterns.push_back({"all_zeros", [](std::vector<uint32_t> & d, std::mt19937 &)
-            { fillConstant(d, 0u); }});
-        patterns.push_back({"all_same", [](std::vector<uint32_t> & d, std::mt19937 &)
-            { fillConstant(d, 42u); }});
-        patterns.push_back({"random_8bit", [](std::vector<uint32_t> & d, std::mt19937 & r)
-            { fillRandom(d, 255u, r); }});
-        patterns.push_back({"random_16bit", [](std::vector<uint32_t> & d, std::mt19937 & r)
-            { fillRandom(d, 65535u, r); }});
-        patterns.push_back({"random_32bit", [](std::vector<uint32_t> & d, std::mt19937 & r)
-            { fillRandom(d, 0xFFFFFFFFu, r); }});
-
-        for (const auto & pattern : patterns)
-        {
-            std::vector<uint32_t> input(n);
-            std::vector<unsigned char> proto_buf(n * 5 + 256);
-            std::vector<unsigned char> ref_buf(n * 5 + 256);
-            std::vector<uint32_t> out_proto(n, 0u);
-            std::vector<uint32_t> out_ref(n, 0u);
-
-            pattern.fill(input, rng);
-            std::fill(proto_buf.begin(), proto_buf.end(), 0u);
-            std::fill(ref_buf.begin(), ref_buf.end(), 0u);
-
-            // Encode with both implementations
-            unsigned char * proto_end = turbopfor::prototype::p4Enc32(input.data(), n, proto_buf.data());
-            unsigned char * ref_end = ::p4enc32(input.data(), n, ref_buf.data());
-
-            size_t proto_len = proto_end - proto_buf.data();
-            size_t ref_len = ref_end - ref_buf.data();
-
-            bool ok = true;
-
-            // Test: Encode with both and verify bytes match
-            if (proto_len == ref_len && std::equal(proto_buf.begin(), proto_buf.begin() + proto_len, ref_buf.begin()))
-            {
-                // Encoded bytes match - decode prototype with its own decoder
-                std::fill(out_proto.begin(), out_proto.end(), 0u);
-                turbopfor::prototype::p4D1Dec32(proto_buf.data(), n, out_proto.data(), 0u);
-
-                // Also decode with reference decoder
-                std::fill(out_ref.begin(), out_ref.end(), 0u);
-                ::p4d1dec32(ref_buf.data(), n, out_ref.data(), 0u);
-
-                // Both decoders should produce the same result
-                if (!std::equal(input.begin(), input.end(), out_proto.begin()))
-                {
-                    std::fprintf(stderr, "FAIL [n=%u %s]: prototype decode mismatch\n",
-                        n, pattern.name.c_str());
-                    ++failed;
-                    ok = false;
-                }
-                else if (!std::equal(out_ref.begin(), out_ref.end(), out_proto.begin()))
-                {
-                    std::fprintf(stderr, "FAIL [n=%u %s]: decoder mismatch (proto vs ref)\n",
-                        n, pattern.name.c_str());
-                    ++failed;
-                    ok = false;
-                }
-            }
-            else
-            {
-                std::fprintf(stderr, "FAIL [n=%u %s]: encoding mismatch (len=%zu vs %zu)\n",
-                    n, pattern.name.c_str(), proto_len, ref_len);
-                ++failed;
-                ok = false;
-            }
-
-            if (ok)
-                ++passed;
-        }
-    }
-
-    std::printf("%u passed, %u failed\n\n", passed, failed);
-    return failed;
-}
-*/
-
-int main()
-{
-    unsigned failed_compat = runBinaryCompatibilityTest();
-    unsigned failed_128v_cross = runCrossValidation128vTest();
-    unsigned failed_128v_compat = runBinaryCompatibility128vTest();
-    unsigned failed_256v_cross = runCrossValidation256vTest();
-    unsigned failed_256v_compat = runBinaryCompatibility256vTest();
-    unsigned failed_bitunpack = runBitunpackCompatibilityTest();
-    unsigned failed_bitunpack_d1 = runBitunpackD1CompatibilityTest();
-    unsigned failed_proto = runPrototypeCompatibilityTest();
-
-    std::printf("=== Summary ===\n");
-    std::printf("Binary Compatibility Test failures: %u\n", failed_compat);
-    std::printf("Cross Validation (128v) Test failures: %u\n", failed_128v_cross);
-    std::printf("Binary Compatibility (128v) Test failures: %u\n", failed_128v_compat);
-    std::printf("Cross Validation (256v) Test failures: %u\n", failed_256v_cross);
-    std::printf("Binary Compatibility (256v) Test failures: %u\n", failed_256v_compat);
-    std::printf("Bitunpack Compatibility Test failures: %u\n", failed_bitunpack);
-    std::printf("BitunpackD1 Compatibility Test failures: %u\n", failed_bitunpack_d1);
-    std::printf("Prototype Implementation Test failures: %u\n", failed_proto);
-    std::printf(
-        "Total failures: %u\n",
-        failed_compat + failed_128v_cross + failed_128v_compat + failed_256v_cross + failed_256v_compat + failed_bitunpack + failed_bitunpack_d1 + failed_proto);
-
-    return (failed_compat + failed_128v_cross + failed_128v_compat + failed_256v_cross + failed_256v_compat + failed_bitunpack + failed_bitunpack_d1 + failed_proto) > 0 ? 1 : 0;
-}

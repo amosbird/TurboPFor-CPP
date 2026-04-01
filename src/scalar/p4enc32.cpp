@@ -200,6 +200,9 @@ unsigned char * p4Enc32Payload(uint32_t * in, unsigned n, unsigned char * out, u
 // Returns: Pointer to end of encoded data
 unsigned char * p4Enc32(uint32_t * in, unsigned n, unsigned char * out)
 {
+    if (n == 0u)
+        return out;
+
     using namespace turbopfor::scalar::detail;
 
     // Analyze input to determine optimal encoding parameters

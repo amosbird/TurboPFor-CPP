@@ -1,50 +1,11 @@
 #pragma once
 
-#include "p4_scalar_bitunpack_impl.h" // for choose_block_size, gcd_u32, etc.
 #include "p4_scalar_internal.h"
 
 #include <utility>
 
 namespace turbopfor::scalar::detail
 {
-
-// Store partial bytes at the end of output
-template <unsigned R>
-static TURBOPFOR_ALWAYS_INLINE void store_partial(unsigned char *& op, uint64_t v)
-{
-    static_assert(R >= 1 && R <= 7);
-    if constexpr (R >= 4)
-    {
-        storeU32Fast(op, static_cast<uint32_t>(v));
-        op += 4u;
-        if constexpr (R >= 6)
-        {
-            storeU16Fast(op, static_cast<uint16_t>(v >> 32));
-            op += 2u;
-            if constexpr (R == 7)
-            {
-                *op++ = static_cast<unsigned char>(v >> 48);
-            }
-        }
-        else if constexpr (R == 5)
-        {
-            *op++ = static_cast<unsigned char>(v >> 32);
-        }
-    }
-    else if constexpr (R >= 2)
-    {
-        storeU16Fast(op, static_cast<uint16_t>(v));
-        op += 2u;
-        if constexpr (R == 3)
-        {
-            *op++ = static_cast<unsigned char>(v >> 16);
-        }
-    }
-    else
-    {
-        *op++ = static_cast<unsigned char>(v);
-    }
-}
 
 // Pack one element into the word array at compile-time computed position
 template <unsigned B, unsigned Base, size_t I>

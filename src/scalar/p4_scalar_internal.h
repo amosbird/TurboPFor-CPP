@@ -114,7 +114,9 @@ TURBOPFOR_ALWAYS_INLINE constexpr uint64_t nativeToLe64(uint64_t v)
     return leToNative64(v);
 }
 
-constexpr unsigned MAX_BITS = 32; // Maximum bits in uint32_t
+constexpr unsigned MAX_BITS_32 = 32; // Maximum bits in uint32_t
+constexpr unsigned MAX_BITS_64 = 64; // Maximum bits in uint64_t
+constexpr unsigned MAX_BITS = 32; // Default MAX_BITS (32-bit) for backwards compatibility
 constexpr unsigned MAX_VALUES = 256; // Maximum values per block
 
 /// Round up to multiple of 8 bits
@@ -166,7 +168,44 @@ inline unsigned bitWidth32(uint32_t x)
 #endif
 }
 
-/// Create a mask with b bits set
+/// Bit scan reverse for 64-bit integer (returns highest set bit position + 1, or 0 if x is 0)
+/// Returns value in range [0, 64]
+inline unsigned bsr64(uint64_t x)
+{
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__x86_64__)
+    int64_t b = -1;
+    asm("bsrq %1,%0" : "+r"(b) : "rm"(x));
+    return static_cast<unsigned>(b + 1);
+#elif defined(__GNUC__) || defined(__clang__)
+    return x ? (64u - static_cast<unsigned>(__builtin_clzll(x))) : 0u;
+#else
+    if (!x)
+        return 0u;
+    unsigned b = 0u;
+    while (x)
+    {
+        ++b;
+        x >>= 1u;
+    }
+    return b;
+#endif
+}
+
+/// Bit width using lzcnt instruction for 64-bit values
+/// Returns highest set bit position + 1, or 0 if x is 0
+inline unsigned bitWidth64(uint64_t x)
+{
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__x86_64__)
+    unsigned long long lz;
+    // lzcnt returns 64 for x=0, so 64-64=0 which is correct
+    asm("lzcntq %1,%0" : "=r"(lz) : "rm"(x) : "cc");
+    return 64u - static_cast<unsigned>(lz);
+#else
+    return x ? (64u - static_cast<unsigned>(__builtin_clzll(x))) : 0u;
+#endif
+}
+
+/// Create a mask with b bits set (32-bit version)
 /// Parameter b: number of bits to set (0-32)
 /// Returns: bitmask with b lowest bits set
 inline uint32_t maskBits(unsigned b)
@@ -174,6 +213,16 @@ inline uint32_t maskBits(unsigned b)
     if (b >= 32u)
         return 0xFFFFFFFFu;
     return b == 0u ? 0u : ((1u << b) - 1u);
+}
+
+/// Create a mask with b bits set (64-bit version)
+/// Parameter b: number of bits to set (0-64)
+/// Returns: bitmask with b lowest bits set
+inline uint64_t maskBits64(unsigned b)
+{
+    if (b >= 64u)
+        return 0xFFFFFFFFFFFFFFFFull;
+    return b == 0u ? 0ull : ((1ull << b) - 1ull);
 }
 
 /// Load unaligned 32-bit little-endian value and convert to native
@@ -328,6 +377,163 @@ TURBOPFOR_ALWAYS_INLINE void copyU32ArrayFromLe(uint32_t * out, const unsigned c
 #endif
 }
 
+/// Copy n uint64_t values from native array to little-endian byte stream
+/// On little-endian platforms, this is equivalent to memcpy
+/// On big-endian platforms, each value is byte-swapped
+TURBOPFOR_ALWAYS_INLINE void copyU64ArrayToLe(unsigned char * out, const uint64_t * in, unsigned n)
+{
+#if TURBOPFOR_BIG_ENDIAN
+    for (unsigned i = 0; i < n; ++i)
+    {
+        storeU64Fast(out, in[i]);
+        out += sizeof(uint64_t);
+    }
+#else
+    memcpy(out, in, n * sizeof(uint64_t));
+#endif
+}
+
+/// Copy n uint64_t values from little-endian byte stream to native array
+/// On little-endian platforms, this is equivalent to memcpy
+/// On big-endian platforms, each value is byte-swapped
+TURBOPFOR_ALWAYS_INLINE void copyU64ArrayFromLe(uint64_t * out, const unsigned char * in, unsigned n)
+{
+#if TURBOPFOR_BIG_ENDIAN
+    for (unsigned i = 0; i < n; ++i)
+    {
+        out[i] = loadU64Fast(in);
+        in += sizeof(uint64_t);
+    }
+#else
+    memcpy(out, in, n * sizeof(uint64_t));
+#endif
+}
+
+/// Constexpr utilities for block size selection (shared by 32-bit and 64-bit bitpack/unpack)
+constexpr unsigned gcd_u32(unsigned a, unsigned b)
+{
+    return b == 0u ? a : gcd_u32(b, a % b);
+}
+
+constexpr unsigned word_count_for(unsigned b, unsigned n)
+{
+    return (n * b + 63u) / 64u;
+}
+
+constexpr unsigned max_words_for_gcd(unsigned g)
+{
+    return (g <= 2u) ? 12u : 16u;
+}
+
+constexpr unsigned choose_block_size(unsigned b, unsigned n)
+{
+    if (n == 0u)
+        return 0u;
+    const unsigned g = gcd_u32(64u, b);
+    unsigned period = 64u / g;
+    unsigned max_words = max_words_for_gcd(g);
+
+    unsigned k = period;
+    while (k > 1u && k > n)
+        k >>= 1u;
+    if (k > n)
+        k = 1u;
+
+    for (;;)
+    {
+        if (word_count_for(b, k) <= max_words && ((k * b) % 8u == 0u))
+            return k;
+        if (k == 1u)
+            break;
+        k >>= 1u;
+    }
+    return n;
+}
+
+/// Store partial bytes at the end of output (1-7 bytes from a 64-bit word)
+/// Used by bitpack templates when the last word doesn't fill a full 8 bytes
+template <unsigned R>
+static TURBOPFOR_ALWAYS_INLINE void store_partial(unsigned char *& op, uint64_t v)
+{
+    static_assert(R >= 1 && R <= 7);
+    if constexpr (R >= 4)
+    {
+        storeU32Fast(op, static_cast<uint32_t>(v));
+        op += 4u;
+        if constexpr (R >= 6)
+        {
+            storeU16Fast(op, static_cast<uint16_t>(v >> 32));
+            op += 2u;
+            if constexpr (R == 7)
+            {
+                *op++ = static_cast<unsigned char>(v >> 48);
+            }
+        }
+        else if constexpr (R == 5)
+        {
+            *op++ = static_cast<unsigned char>(v >> 32);
+        }
+    }
+    else if constexpr (R >= 2)
+    {
+        storeU16Fast(op, static_cast<uint16_t>(v));
+        op += 2u;
+        if constexpr (R == 3)
+        {
+            *op++ = static_cast<unsigned char>(v >> 16);
+        }
+    }
+    else
+    {
+        *op++ = static_cast<unsigned char>(v);
+    }
+}
+
+/// Load partial bytes from input (1-7 bytes into a 64-bit word)
+/// Used by bitunpack templates when the last word doesn't fill a full 8 bytes
+template <unsigned R>
+static TURBOPFOR_ALWAYS_INLINE uint64_t load_partial(unsigned char *& ip)
+{
+    static_assert(R >= 1 && R <= 7);
+    uint64_t v = 0;
+    if constexpr (R >= 4)
+    {
+        v |= static_cast<uint64_t>(loadU32Fast(ip));
+        ip += 4u;
+        if constexpr (R >= 6)
+        {
+            v |= static_cast<uint64_t>(loadU16Fast(ip)) << 32;
+            ip += 2u;
+            if constexpr (R == 7)
+            {
+                v |= static_cast<uint64_t>(ip[0]) << 48;
+                ip += 1u;
+            }
+        }
+        else if constexpr (R == 5)
+        {
+            v |= static_cast<uint64_t>(ip[0]) << 32;
+            ip += 1u;
+        }
+    }
+    else if constexpr (R >= 2)
+    {
+        v |= static_cast<uint64_t>(loadU16Fast(ip));
+        ip += 2u;
+        if constexpr (R == 3)
+        {
+            v |= static_cast<uint64_t>(ip[0]) << 16;
+            ip += 1u;
+        }
+    }
+    else
+    {
+        v |= static_cast<uint64_t>(ip[0]);
+        ip += 1u;
+    }
+    return v;
+}
+
 /// Scalar bit packing/unpacking (horizontal format)
 unsigned char * bitpack32Scalar(const uint32_t * in, unsigned n, unsigned char * out, unsigned b);
 unsigned char * bitunpack32Scalar(unsigned char * in, unsigned n, uint32_t * out, unsigned b);
@@ -346,15 +552,37 @@ unsigned char * bitpack256v32Scalar(const uint32_t * in, unsigned char * out, un
 unsigned char * bitunpack256v32Scalar(unsigned char * in, uint32_t * out, unsigned b);
 
 // Variable-byte encoding constants (matching TurboPFor vlcbyte.h scheme)
-// These are used for compact encoding of small integer values.
+//
+// TurboPFor uses VB_MAX = 0xFD (not 0xFF), reserving:
+//   0xFE = all-zeros marker (used in delta encoding)
+//   0xFF = overflow/uncompressed escape
+//
+// The encoding uses _vbput(op, x, VBSIZE, VB_MAX=0xFD, VBB2=6, VBB3=5, ;)
+// with thresholds computed as:
+//   _vbba3(VBSIZE, 0xFD) = 0xFD - (VBSIZE/8 - 3)
+//   _vbba2(VBSIZE, 0xFD, 5) = _vbba3 - 32
+//   _vbo1(VBSIZE, 0xFD, 6, 5) = _vbba2 - 64
+//   _vbo2 = _vbo1 + 16384
+//   _vbo3 = _vbo2 + 2097152
+//
+// 32-bit constants (VBSIZE=32):
 constexpr unsigned VBYTE_ESCAPE_UNCOMPRESSED = 0xFFu; // Escape: uncompressed data follows
-constexpr unsigned VBYTE_MARKER_MAX = 0xFDu; // Maximum marker used by vbPut32
-constexpr unsigned VBYTE_MARKER_4PLUS = 0xFCu; // First marker for 4+ byte encoding
-constexpr unsigned VBYTE_MARKER_3BYTE = 0xDCu; // First marker for 3-byte encoding
-constexpr unsigned VBYTE_MARKER_2BYTE = 0x9Cu; // First marker for 2-byte encoding
-constexpr unsigned VBYTE_THRESHOLD_2BYTE = 156u; // Values >= 156 need 2+ bytes
-constexpr unsigned VBYTE_THRESHOLD_3BYTE = 16540u; // Values >= 16540 need 3+ bytes
-constexpr unsigned VBYTE_THRESHOLD_4PLUS = 2113692u; // Values >= 2113692 need 4+ bytes
+constexpr unsigned VBYTE_MARKER_MAX = 0xFDu; // VB_MAX: maximum marker used by vbPut32
+constexpr unsigned VBYTE_MARKER_4PLUS = 0xFCu; // _vbba3(32,0xFD) = 0xFD-(4-3) = 0xFC
+constexpr unsigned VBYTE_MARKER_3BYTE = 0xDCu; // _vbba2(32,0xFD,5) = 0xFC-32 = 0xDC
+constexpr unsigned VBYTE_MARKER_2BYTE = 0x9Cu; // _vbo1(32,0xFD,6,5) = 0xDC-64 = 0x9C
+constexpr unsigned VBYTE_THRESHOLD_2BYTE = 156u; // _vbo1 = 0x9C = 156
+constexpr unsigned VBYTE_THRESHOLD_3BYTE = 16540u; // _vbo2 = 156 + 16384 = 16540
+constexpr unsigned VBYTE_THRESHOLD_4PLUS = 2113692u; // _vbo3 = 16540 + 2097152 = 2113692
+
+// 64-bit constants (VBSIZE=64):
+// Raw markers use 0xF8..0xFD for 3..8 byte raw values
+constexpr unsigned VBYTE64_MARKER_RAW = 0xF8u; // _vbba3(64,0xFD) = 0xFD-(8-3) = 0xF8
+constexpr unsigned VBYTE64_MARKER_3BYTE = 0xD8u; // _vbba2(64,0xFD,5) = 0xF8-32 = 0xD8
+constexpr unsigned VBYTE64_MARKER_2BYTE = 0x98u; // _vbo1(64,0xFD,6,5) = 0xD8-64 = 0x98
+constexpr unsigned VBYTE64_THRESHOLD_2BYTE = 152u; // _vbo1 = 0x98 = 152
+constexpr unsigned VBYTE64_THRESHOLD_3BYTE = 16536u; // _vbo2 = 152 + 16384 = 16536
+constexpr unsigned VBYTE64_THRESHOLD_RAW = 2113688u; // _vbo3 = 16536 + 2097152 = 2113688
 
 /// Inline single-value variable-byte decoder (matches TurboPFor _vbget32 macro)
 /// Uses likely() hints for optimal branch prediction since small values are most common.
@@ -396,14 +624,85 @@ TURBOPFOR_ALWAYS_INLINE unsigned char * vbGet32Inline(unsigned char * in, uint32
     return in + 4;
 }
 
-/// Variable-byte encoding/decoding
+/// Variable-byte encoding/decoding (32-bit)
 unsigned char * vbEnc32(const uint32_t * in, unsigned n, unsigned char * out);
 unsigned char * vbDec32(unsigned char * in, unsigned n, uint32_t * out);
 
-/// P4 bit width selection
+/// Inline single-value variable-byte decoder for 64-bit values (matches TurboPFor _vbget64 macro)
+///
+/// Same structure as 32-bit but with shifted thresholds (VB_MAX=0xFD, VBSIZE=64):
+/// - [0x00..0x97]: 1-byte encoding, value = marker
+/// - [0x98..0xD7]: 2-byte encoding, value = 152 + decode(marker, data_byte)
+/// - [0xD8..0xF7]: 3-byte encoding, value = 16536 + decode(marker, data16)
+/// - [0xF8..0xFD]: raw encoding, (marker - 0xF8 + 3) raw bytes follow
+TURBOPFOR_ALWAYS_INLINE unsigned char * vbGet64Inline(unsigned char * in, uint64_t & x)
+{
+    const unsigned marker = *in++;
+
+    if (TURBOPFOR_LIKELY(marker < VBYTE64_MARKER_2BYTE)) // marker < 0x98 (most common)
+    {
+        x = marker;
+        return in;
+    }
+
+    if (TURBOPFOR_LIKELY(marker < VBYTE64_MARKER_3BYTE)) // marker < 0xD8
+    {
+        // 2-byte encoding: reconstruct value from marker + 1 data byte
+        const unsigned data_byte = *in++;
+        x = ((marker - VBYTE64_MARKER_2BYTE) << 8) + data_byte + VBYTE64_THRESHOLD_2BYTE;
+        return in;
+    }
+
+    if (TURBOPFOR_LIKELY(marker < VBYTE64_MARKER_RAW)) // marker < 0xF8
+    {
+        // 3-byte encoding: marker + 2 data bytes (little-endian)
+        const unsigned low16 = loadU16Fast(in);
+        x = low16 + ((marker - VBYTE64_MARKER_3BYTE) << 16) + VBYTE64_THRESHOLD_3BYTE;
+        return in + 2;
+    }
+
+    // Raw encoding: marker 0xF8..0xFD = 3..8 raw bytes
+    const unsigned raw_bytes = (marker - VBYTE64_MARKER_RAW) + 3u;
+    // Read up to 8 bytes and mask to the appropriate width
+    // Note: reading 8 bytes is safe because TurboPFor always overallocates
+    x = loadU64Fast(in) & ((raw_bytes >= 8u) ? 0xFFFFFFFFFFFFFFFFull : ((1ull << (raw_bytes * 8u)) - 1ull));
+    return in + raw_bytes;
+}
+
+/// Variable-byte encoding/decoding (64-bit)
+unsigned char * vbEnc64(const uint64_t * in, unsigned n, unsigned char * out);
+unsigned char * vbDec64(unsigned char * __restrict in, unsigned n, uint64_t * __restrict out);
+
+/// P4 bit width selection (32-bit)
 unsigned p4Bits32(const uint32_t * in, unsigned n, unsigned * out_exception_bits);
 
-/// Write P4 header
+/// P4 bit width selection (64-bit)
+unsigned p4Bits64(const uint64_t * in, unsigned n, unsigned * out_exception_bits);
+
+/// Write P4 header (32-bit: max base bits = 32)
 void writeHeader(unsigned char *& out, unsigned b, unsigned bx);
+
+/// Write P4 header (64-bit: max base bits = 64, with 63->64 bit quirk)
+void writeHeader64(unsigned char *& out, unsigned b, unsigned bx);
+
+/// Scalar bit packing/unpacking for 64-bit values (horizontal format)
+unsigned char * bitpack64Scalar(const uint64_t * in, unsigned n, unsigned char * out, unsigned b);
+unsigned char * bitunpack64Scalar(unsigned char * in, unsigned n, uint64_t * out, unsigned b);
+
+/// Fused unpack + delta1 decode for 64-bit values
+unsigned char * bitunpackd1_64Scalar(unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b);
+
+/// 128v64 bitpacking: 2-lane interleaved horizontal packing for 128 elements
+/// 128 bits / 64 bits = 2 lanes, 64 groups x 2 lanes = 128 elements
+unsigned char * bitpack128v64Scalar(const uint64_t * in, unsigned char * out, unsigned b);
+unsigned char * bitunpack128v64Scalar(unsigned char * in, uint64_t * out, unsigned b);
+
+/// 256v64 bitpacking: 4-lane interleaved horizontal packing for 256 elements
+/// 256 bits / 64 bits = 4 lanes, 64 groups x 4 lanes = 256 elements
+unsigned char * bitpack256v64Scalar(const uint64_t * in, unsigned char * out, unsigned b);
+unsigned char * bitunpack256v64Scalar(unsigned char * in, uint64_t * out, unsigned b);
+
+/// Apply delta1 decoding for 256-element 64-bit blocks
+void applyDelta1_256_64(uint64_t * out, unsigned n, uint64_t start);
 
 } // namespace turbopfor::scalar::detail

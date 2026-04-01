@@ -100,7 +100,7 @@ const unsigned char * p4D1Dec256PayloadBitmap(
     const unsigned char * ip = in + pad8(n);
 
     // Phase 2: Unpack exception values (horizontal bitpacking)
-    uint32_t exceptions[MAX_VALUES + 64] = {0};
+    uint32_t exceptions[MAX_VALUES + 64];
     ip = bitunpack32Scalar(const_cast<unsigned char *>(ip), exception_count, exceptions, bx);
 
     // Phase 3: Unpack base values (256v32 vertical bitpacking)
@@ -252,7 +252,7 @@ unsigned char * p4D1Dec256v32(unsigned char * in, unsigned n, uint32_t * out, ui
     ip = bitunpack256v32Scalar(ip, out, b);
 
     // Decode variable-byte exceptions
-    uint32_t exceptions[MAX_VALUES + 64] = {0};
+    uint32_t exceptions[MAX_VALUES + 64];
     ip = vbDec32(ip, bx, exceptions);
 
     // Apply patches using position list

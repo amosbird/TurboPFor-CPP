@@ -78,6 +78,17 @@ set(TURBOPFOR_SOURCES
   src/scalar/p4_scalar_bitunpack32.cpp
   src/scalar/p4_scalar_bitunpackd1_32.cpp
   src/scalar/p4_scalar_internal.cpp
+  src/scalar/p4_scalar_bitpack64.cpp
+  src/scalar/p4_scalar_bitunpack64.cpp
+  src/scalar/p4_scalar_bitunpackd1_64.cpp
+  src/scalar/p4enc64.cpp
+  src/scalar/p4d1dec64.cpp
+  src/scalar/bitpack128v64_scalar.cpp
+  src/scalar/p4enc128v64_scalar.cpp
+  src/scalar/p4d1dec128v64_scalar.cpp
+  src/scalar/bitpack256v64_scalar.cpp
+  src/scalar/p4enc256v64_scalar.cpp
+  src/scalar/p4d1dec256v64_scalar.cpp
   src/scalar/bitpack128v32_scalar.cpp
   src/scalar/p4enc128v32_scalar.cpp
   src/scalar/p4d1dec128v32_scalar.cpp
@@ -94,6 +105,13 @@ if(ENABLE_SSE42)
     src/simd/p4_simd_internal.cpp
     src/simd/bitpack128v32_simd.cpp
     src/simd/bitunpack128v32_simd.cpp
+    src/simd/bitpack128v64_simd.cpp
+    src/simd/p4enc128v64.cpp
+    src/simd/p4dec128v64.cpp
+    src/simd/p4d1dec128v64.cpp
+    src/simd/p4enc256v64.cpp
+    src/simd/p4dec256v64.cpp
+    src/simd/p4d1dec256v64.cpp
   )
 endif()
 
@@ -133,6 +151,10 @@ if(ENABLE_SSE42)
     src/simd/p4_simd_internal.cpp
     src/simd/bitpack128v32_simd.cpp
     src/simd/bitunpack128v32_simd.cpp
+    src/simd/bitpack128v64_simd.cpp
+    src/simd/p4enc128v64.cpp
+    src/simd/p4dec128v64.cpp
+    src/simd/p4d1dec128v64.cpp
     PROPERTIES COMPILE_OPTIONS "-mssse3;-msse4.1;-msse4.2;-mpopcnt"
   )
 endif()
@@ -165,7 +187,7 @@ add_library(turbopfor_ref_base
     ${TURBOPFOR_SOURCE_DIR}/lib/vp4d.c
     ${TURBOPFOR_SOURCE_DIR}/lib/transpose.c
 )
-target_compile_options(turbopfor_ref_base PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS} -w -DSSE2_ON -mssse3 -msse4.1 -msse4.2 -mpopcnt)
+target_compile_options(turbopfor_ref_base PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS} -w -Wno-error=incompatible-pointer-types -DSSE2_ON -mssse3 -msse4.1 -msse4.2 -mpopcnt)
 target_include_directories(turbopfor_ref_base SYSTEM PUBLIC ${TURBOPFOR_SOURCE_DIR}/lib/include_)
 
 # AVX2 reference library for 256v functions (p4enc256v32, p4d1dec256v32, etc.)
@@ -177,7 +199,7 @@ add_library(turbopfor_ref_avx2 OBJECT
     ${TURBOPFOR_SOURCE_DIR}/lib/vp4c.c
     ${TURBOPFOR_SOURCE_DIR}/lib/vp4d.c
 )
-target_compile_options(turbopfor_ref_avx2 PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS} -w -DSSE2_ON -mssse3 -msse4.1 -msse4.2 -mpopcnt -mavx2)
+target_compile_options(turbopfor_ref_avx2 PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS} -w -Wno-error=incompatible-pointer-types -DSSE2_ON -mssse3 -msse4.1 -msse4.2 -mpopcnt -mavx2)
 target_include_directories(turbopfor_ref_avx2 SYSTEM PUBLIC ${TURBOPFOR_SOURCE_DIR}/lib/include_)
 
 # Combined reference library
@@ -188,18 +210,23 @@ target_link_libraries(turbopfor PRIVATE turbopfor_ref_base)
 
 # Test and benchmark executables always compile with both scalar and SIMD versions
 # so they can test the actual implementations regardless of what the library exports
-add_executable(binary_compat_test
-  tests/binary_compat_test.cpp
+add_executable(turbopfor_test
+  tests/test_main.cpp
+  tests/test_p4_32.cpp
+  tests/test_p4_64.cpp
   src/simd/p4enc128v32.cpp
   src/simd/p4d1dec128v32.cpp
   src/simd/p4_simd_internal.cpp
   src/simd/bitpack128v32_simd.cpp
   src/simd/bitunpack128v32_simd.cpp
+  src/simd/bitpack128v64_simd.cpp
+  src/simd/p4enc128v64.cpp
+  src/simd/p4dec128v64.cpp
+  src/simd/p4d1dec128v64.cpp
 )
-target_link_libraries(binary_compat_test PRIVATE turbopfor turbopfor_ref_base $<TARGET_OBJECTS:turbopfor_ref_avx2>)
-
-target_include_directories(binary_compat_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_compile_options(binary_compat_test PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS})
+target_link_libraries(turbopfor_test PRIVATE turbopfor turbopfor_ref_base $<TARGET_OBJECTS:turbopfor_ref_avx2>)
+target_include_directories(turbopfor_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_options(turbopfor_test PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS})
 
 # Set SSE4.2 flags for SIMD source files in test
 set_source_files_properties(
@@ -208,12 +235,15 @@ set_source_files_properties(
   src/simd/p4_simd_internal.cpp
   src/simd/bitpack128v32_simd.cpp
   src/simd/bitunpack128v32_simd.cpp
+  src/simd/bitpack128v64_simd.cpp
+  src/simd/p4enc128v64.cpp
+  src/simd/p4dec128v64.cpp
+  src/simd/p4d1dec128v64.cpp
+  src/simd/p4enc256v64.cpp
+  src/simd/p4dec256v64.cpp
+  src/simd/p4d1dec256v64.cpp
   PROPERTIES COMPILE_OPTIONS "-mssse3;-msse4.1;-msse4.2;-mpopcnt"
 )
-
-
-
-
 
 # Benchmark executable
 add_executable(ab_test benchmarks/ab_test.cpp)
@@ -226,4 +256,3 @@ endif()
 if(ENABLE_SSE42)
     target_compile_definitions(ab_test PRIVATE ENABLE_SSE42)
 endif()
-

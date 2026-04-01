@@ -58,7 +58,7 @@ unsigned char * p4Enc256v32PayloadExceptions(uint32_t * in, unsigned n, unsigned
     // exceptions[]: stores high bits of exception values (bits above b)
     // exception_positions[]: stores indices of values that exceed b bits
     uint32_t base[MAX_VALUES + 32] = {0}; // Extra padding for SIMD safety
-    uint32_t exceptions[MAX_VALUES + 32] = {0};
+    uint32_t exceptions[MAX_VALUES + 32];
     uint64_t bitmap[MAX_VALUES / 64] = {0}; // 1 bit per value: 1 = has exception
     unsigned exception_positions[MAX_VALUES] = {0};
 
