@@ -53,7 +53,7 @@ p4Dec128v64PayloadBitmap(const unsigned char * in, unsigned n, uint64_t * out, u
 
     // Phase 2: Unpack exception values (scalar bitpack64)
     uint64_t exceptions[MAX_VALUES + 64];
-    ip = scalar::detail::bitunpack64Scalar(const_cast<unsigned char *>(ip), exception_count, exceptions, bx);
+    ip = scalar::detail::bitunpack64Scalar(ip, exception_count, exceptions, bx);
 
     // Phase 3: Unpack base values (SIMD bitunpack128v64)
     ip = bitunpack128v64(ip, out, b);
@@ -83,14 +83,14 @@ p4Dec128v64PayloadBitmap(const unsigned char * in, unsigned n, uint64_t * out, u
 
 } // namespace
 
-unsigned char * p4Dec128v64(unsigned char * in, unsigned n, uint64_t * out)
+const unsigned char * p4Dec128v64(const unsigned char * in, unsigned n, uint64_t * out)
 {
     using namespace turbopfor::simd::detail;
 
     if (n == 0u)
         return in;
 
-    unsigned char * ip = in;
+    const unsigned char * ip = in;
     unsigned b = *ip++;
 
     // Case 1: Constant block
@@ -130,7 +130,7 @@ unsigned char * p4Dec128v64(unsigned char * in, unsigned n, uint64_t * out)
             return ip;
         }
 
-        return const_cast<unsigned char *>(p4Dec128v64PayloadBitmap(ip, n, out, b, bx));
+        return p4Dec128v64PayloadBitmap(ip, n, out, b, bx);
     }
 
     // Case 3: Variable-byte exceptions

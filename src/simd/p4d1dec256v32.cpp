@@ -88,7 +88,7 @@ ALWAYS_INLINE const unsigned char * p4D1Dec256Exceptions(
 
     if (rem > 0)
     {
-        ip = scalar::detail::bitunpack32Scalar(const_cast<unsigned char *>(ip), rem, ex_ptr, bx);
+        ip = scalar::detail::bitunpack32Scalar(ip, rem, ex_ptr, bx);
     }
 
     const uint32_t * pex = ex;
@@ -124,14 +124,14 @@ ALWAYS_INLINE const unsigned char * p4D1Dec256Exceptions(
 
 } // namespace
 
-unsigned char * p4D1Dec256v32(unsigned char * __restrict__ in, unsigned n, uint32_t * __restrict__ out, uint32_t start)
+const unsigned char * p4D1Dec256v32(const unsigned char * __restrict__ in, unsigned n, uint32_t * __restrict__ out, uint32_t start)
 {
     using namespace turbopfor::simd::detail;
 
     if (n == 0u)
         return in;
 
-    unsigned char * ip = in;
+    const unsigned char * ip = in;
     unsigned b = *ip++;
 
     // Case 1: All values equal (b & 0xC0 == 0xC0)
@@ -160,18 +160,18 @@ unsigned char * p4D1Dec256v32(unsigned char * __restrict__ in, unsigned n, uint3
         // Direct tail call to bitd1unpack256v32 - matches TurboPFor structure
         if (!(b & 0x80u))
         {
-            return const_cast<unsigned char *>(bitd1unpack256v32(ip, out, b, start));
+            return bitd1unpack256v32(ip, out, b, start);
         }
 
         // Has exception bitmap but may have zero exceptions
         b &= 0x7Fu;
         if (bx == 0u)
         {
-            return const_cast<unsigned char *>(bitd1unpack256v32(ip, out, b, start));
+            return bitd1unpack256v32(ip, out, b, start);
         }
 
         // SLOW PATH: Handle exceptions
-        return const_cast<unsigned char *>(p4D1Dec256Exceptions(ip, n, out, start, b, bx));
+        return p4D1Dec256Exceptions(ip, n, out, start, b, bx);
     }
 
     // Case 3: Variable byte format (b & 0x40 != 0)
@@ -181,13 +181,13 @@ unsigned char * p4D1Dec256v32(unsigned char * __restrict__ in, unsigned n, uint3
     // FAST PATH: No exceptions - use fused delta1 unpack directly
     if (bx == 0u)
     {
-        return const_cast<unsigned char *>(bitd1unpack256v32(ip, out, b, start));
+        return bitd1unpack256v32(ip, out, b, start);
     }
 
     // SLOW PATH: Has exceptions - must unpack, merge, then apply delta
     uint32_t ex[MAX_VALUES + 64]; // No initialization needed - vbDec32 writes all values we read
-    ip = const_cast<unsigned char *>(bitunpack256v32(ip, out, b));
-    ip = const_cast<unsigned char *>(vbDec32_256v(ip, bx, ex));
+    ip = bitunpack256v32(ip, out, b);
+    ip = vbDec32_256v(ip, bx, ex);
 
     // Unrolled exception merge loop (8x unrolled to match TurboPFor)
     unsigned i = 0;

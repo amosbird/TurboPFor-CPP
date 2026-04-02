@@ -26,7 +26,7 @@ namespace
 //   bx: Patch bit width (1-31)
 //
 // Returns: Pointer to next byte after decoded data
-unsigned char * p4D1DecPayloadExceptions(unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b, unsigned bx)
+const unsigned char * p4D1DecPayloadExceptions(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b, unsigned bx)
 {
     using namespace turbopfor::scalar::detail;
 
@@ -59,7 +59,7 @@ unsigned char * p4D1DecPayloadExceptions(unsigned char * in, unsigned n, uint32_
     }
 
     // Advance past bitmap
-    unsigned char * input_ptr = in + pad8(n);
+    const unsigned char * input_ptr = in + pad8(n);
 
     // Phase 2: Unpack exception patch bits and base bits
     // exception_values: high bits for exceptions
@@ -133,14 +133,14 @@ unsigned char * p4D1DecPayloadExceptions(unsigned char * in, unsigned n, uint32_
 //   start: Initial value for delta1 decoding (previous value in sequence)
 //
 // Returns: Pointer to next byte after decoded data
-unsigned char * p4D1Dec32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start)
+const unsigned char * p4D1Dec32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start)
 {
     if (n == 0u)
         return in;
 
     using namespace turbopfor::scalar::detail;
 
-    unsigned char * input_ptr = in;
+    const unsigned char * input_ptr = in;
     unsigned base_bits = *input_ptr++;
 
     // Fast path: Simple bitpacking (no exceptions)

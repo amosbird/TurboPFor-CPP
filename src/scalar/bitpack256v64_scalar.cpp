@@ -37,7 +37,7 @@ unsigned char * bitpack256v64Scalar(const uint64_t * in, unsigned char * out, un
     return bitpack64Scalar(in, V256_64_BLOCK_SIZE, out, b);
 }
 
-unsigned char * bitunpack256v64Scalar(unsigned char * in, uint64_t * out, unsigned b)
+const unsigned char * bitunpack256v64Scalar(const unsigned char * in, uint64_t * out, unsigned b)
 {
     if (b <= 32u)
     {

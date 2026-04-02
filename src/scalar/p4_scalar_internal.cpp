@@ -102,7 +102,7 @@ void vbPut32(unsigned char *& out, uint32_t x)
 // - [0xFC..0xFD]: 4+ byte encoding (read raw bytes)
 //
 // Returns: Pointer to next byte after the decoded value
-unsigned char * vbGet32(unsigned char * in, uint32_t & x)
+const unsigned char * vbGet32(const unsigned char * in, uint32_t & x)
 {
     const unsigned marker = *in++;
 
@@ -212,7 +212,7 @@ unsigned char * vbEnc32(const uint32_t * in, unsigned n, unsigned char * out)
 // - The 32-byte threshold in vbEnc32 ensures we only use compression when worthwhile
 //
 // Returns: Pointer to end of consumed input data
-unsigned char * vbDec32(unsigned char * in, unsigned n, uint32_t * out)
+const unsigned char * vbDec32(const unsigned char * in, unsigned n, uint32_t * out)
 {
     // Check format by examining first byte
     if (*in == VBYTE_ESCAPE_UNCOMPRESSED)
@@ -227,7 +227,7 @@ unsigned char * vbDec32(unsigned char * in, unsigned n, uint32_t * out)
     // Compressed format: Variable-byte encoded values
     // Decode each value sequentially using vbGet32Inline
     // Note: vbGet32Inline returns updated input pointer after consuming variable bytes
-    unsigned char * ip = in;
+    const unsigned char * ip = in;
     for (unsigned i = 0; i < n; ++i)
     {
         ip = vbGet32Inline(ip, out[i]);
@@ -494,7 +494,7 @@ unsigned char * vbEnc64(const uint64_t * in, unsigned n, unsigned char * out)
     return op;
 }
 
-unsigned char * vbDec64(unsigned char * __restrict in, unsigned n, uint64_t * __restrict out)
+const unsigned char * vbDec64(const unsigned char * __restrict in, unsigned n, uint64_t * __restrict out)
 {
     if (*in == VBYTE_ESCAPE_UNCOMPRESSED)
     {
@@ -502,7 +502,7 @@ unsigned char * vbDec64(unsigned char * __restrict in, unsigned n, uint64_t * __
         return in + 1 + n * sizeof(uint64_t);
     }
 
-    unsigned char * __restrict ip = in;
+    const unsigned char * __restrict ip = in;
     uint64_t * op = out;
     uint64_t * const end8 = out + (n & ~7u);
     uint64_t * const end = out + n;

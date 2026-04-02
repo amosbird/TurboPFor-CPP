@@ -75,7 +75,7 @@ unsigned char * bitpack128v64Scalar(const uint64_t * in, unsigned char * out, un
 //   b: Bit width (0-64)
 //
 // Returns: Pointer to end of consumed input data
-unsigned char * bitunpack128v64Scalar(unsigned char * in, uint64_t * out, unsigned b)
+const unsigned char * bitunpack128v64Scalar(const unsigned char * in, uint64_t * out, unsigned b)
 {
     if (b <= 32u)
     {
@@ -86,7 +86,7 @@ unsigned char * bitunpack128v64Scalar(unsigned char * in, uint64_t * out, unsign
         // so after unpacking we have tmp = [v2,v3,v0,v1] for each group of 4.
         // We need to reverse: out[0]=tmp[2], out[1]=tmp[3], out[2]=tmp[0], out[3]=tmp[1]
         uint32_t tmp[V128_64_BLOCK_SIZE];
-        unsigned char * ip = bitunpack128v32Scalar(in, tmp, b);
+        const unsigned char * ip = bitunpack128v32Scalar(in, tmp, b);
 
         for (unsigned i = 0; i < V128_64_BLOCK_SIZE; i += 4)
         {

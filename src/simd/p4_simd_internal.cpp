@@ -16,7 +16,7 @@ unsigned char * vbEnc32(const uint32_t * in, unsigned n, unsigned char * out)
 
 const unsigned char * vbDec32(const unsigned char * in, unsigned n, uint32_t * out)
 {
-    return scalar::detail::vbDec32(reinterpret_cast<unsigned char *>(const_cast<unsigned char *>(in)), n, out);
+    return scalar::detail::vbDec32(in, n, out);
 }
 
 unsigned p4Bits32(const uint32_t * in, unsigned n, unsigned * pbx)

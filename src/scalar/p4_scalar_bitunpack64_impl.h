@@ -83,8 +83,8 @@ unpack_emit64(const uint64_t * __restrict w, uint64_t * __restrict out, uint64_t
 
 // Unpack a block of K 64-bit elements with bit width B
 template <bool Delta1, unsigned B, unsigned K, unsigned Base>
-static TURBOPFOR_ALWAYS_INLINE unsigned char *
-unpack_block64(unsigned char * __restrict in, uint64_t * __restrict out, [[maybe_unused]] uint64_t & acc)
+static TURBOPFOR_ALWAYS_INLINE const unsigned char *
+unpack_block64(const unsigned char * __restrict in, uint64_t * __restrict out, [[maybe_unused]] uint64_t & acc)
 {
     constexpr unsigned total_bits = K * B;
     constexpr unsigned total_bytes = (total_bits + 7u) / 8u;
@@ -92,7 +92,7 @@ unpack_block64(unsigned char * __restrict in, uint64_t * __restrict out, [[maybe
     constexpr unsigned last_bytes = total_bytes - (word_count - 1u) * 8u;
 
     uint64_t w[word_count];
-    unsigned char * ip = in;
+    const unsigned char * ip = in;
     for (unsigned i = 0; i + 1u < word_count; ++i)
     {
         w[i] = loadU64Fast(ip);
@@ -114,7 +114,7 @@ unpack_block64(unsigned char * __restrict in, uint64_t * __restrict out, [[maybe
 
 // Recursively unpack blocks of optimal size for 64-bit values
 template <bool Delta1, unsigned B, unsigned N, unsigned Base>
-static TURBOPFOR_ALWAYS_INLINE unsigned char * unpack_blocks64(unsigned char * __restrict in, uint64_t * __restrict out, uint64_t acc)
+static TURBOPFOR_ALWAYS_INLINE const unsigned char * unpack_blocks64(const unsigned char * __restrict in, uint64_t * __restrict out, uint64_t acc)
 {
     if constexpr (N == 0u)
     {
@@ -124,7 +124,7 @@ static TURBOPFOR_ALWAYS_INLINE unsigned char * unpack_blocks64(unsigned char * _
     {
         constexpr unsigned block = choose_block_size(B, N);
 
-        unsigned char * ip = unpack_block64<Delta1, B, block, Base>(in, out, acc);
+        const unsigned char * ip = unpack_block64<Delta1, B, block, Base>(in, out, acc);
         if constexpr (N == block)
             return ip;
         else
@@ -140,7 +140,7 @@ unpack_b64_d1_32_emit(const unsigned char * in, uint64_t * out, uint64_t & acc, 
     ((acc += loadU64Fast(in + 8u * static_cast<unsigned>(I)), out[I] = acc + (static_cast<unsigned>(I) + 1u)), ...);
 }
 
-static TURBOPFOR_ALWAYS_INLINE unsigned char * unpack_b64_d1_32(unsigned char * in, uint64_t * out, uint64_t start)
+static TURBOPFOR_ALWAYS_INLINE const unsigned char * unpack_b64_d1_32(const unsigned char * in, uint64_t * out, uint64_t start)
 {
     uint64_t acc = start;
     unpack_b64_d1_32_emit(in, out, acc, std::make_index_sequence<32>{});
@@ -155,7 +155,7 @@ unpack_b32_d1_32_emit64(const unsigned char * in, uint64_t * out, uint64_t & acc
     ((acc += static_cast<uint64_t>(loadU32Fast(in + 4u * static_cast<unsigned>(I))), out[I] = acc + (static_cast<unsigned>(I) + 1u)), ...);
 }
 
-static TURBOPFOR_ALWAYS_INLINE unsigned char * unpack_b32_d1_32_u64(unsigned char * in, uint64_t * out, uint64_t start)
+static TURBOPFOR_ALWAYS_INLINE const unsigned char * unpack_b32_d1_32_u64(const unsigned char * in, uint64_t * out, uint64_t start)
 {
     uint64_t acc = start;
     unpack_b32_d1_32_emit64(in, out, acc, std::make_index_sequence<32>{});
@@ -170,7 +170,7 @@ unpack_b16_d1_32_emit64(const unsigned char * in, uint64_t * out, uint64_t & acc
     ((acc += static_cast<uint64_t>(loadU16Fast(in + 2u * static_cast<unsigned>(I))), out[I] = acc + (static_cast<unsigned>(I) + 1u)), ...);
 }
 
-static TURBOPFOR_ALWAYS_INLINE unsigned char * unpack_b16_d1_32_u64(unsigned char * in, uint64_t * out, uint64_t start)
+static TURBOPFOR_ALWAYS_INLINE const unsigned char * unpack_b16_d1_32_u64(const unsigned char * in, uint64_t * out, uint64_t start)
 {
     uint64_t acc = start;
     unpack_b16_d1_32_emit64(in, out, acc, std::make_index_sequence<32>{});
@@ -185,7 +185,7 @@ unpack_b8_d1_32_emit64(const unsigned char * in, uint64_t * out, uint64_t & acc,
     ((acc += static_cast<uint64_t>(in[static_cast<unsigned>(I)]), out[I] = acc + (static_cast<unsigned>(I) + 1u)), ...);
 }
 
-static TURBOPFOR_ALWAYS_INLINE unsigned char * unpack_b8_d1_32_u64(unsigned char * in, uint64_t * out, uint64_t start)
+static TURBOPFOR_ALWAYS_INLINE const unsigned char * unpack_b8_d1_32_u64(const unsigned char * in, uint64_t * out, uint64_t start)
 {
     uint64_t acc = start;
     unpack_b8_d1_32_emit64(in, out, acc, std::make_index_sequence<32>{});
@@ -194,8 +194,8 @@ static TURBOPFOR_ALWAYS_INLINE unsigned char * unpack_b8_d1_32_u64(unsigned char
 
 // Unpack N 64-bit elements with bit width B
 template <bool Delta1, unsigned B, unsigned N>
-static TURBOPFOR_ALWAYS_INLINE unsigned char *
-unpack64_n_b(unsigned char * __restrict in, uint64_t * __restrict out, [[maybe_unused]] uint64_t start)
+static TURBOPFOR_ALWAYS_INLINE const unsigned char *
+unpack64_n_b(const unsigned char * __restrict in, uint64_t * __restrict out, [[maybe_unused]] uint64_t start)
 {
     static_assert(B >= 1 && B <= 64);
     static_assert(N >= 1 && N <= 32);
@@ -213,7 +213,7 @@ unpack64_n_b(unsigned char * __restrict in, uint64_t * __restrict out, [[maybe_u
     // General special cases for aligned bit widths
     if constexpr (B == 64)
     {
-        unsigned char * ip = in;
+        const unsigned char * ip = in;
         for (unsigned i = 0; i < N; ++i)
         {
             uint64_t v = loadU64Fast(ip);
@@ -227,7 +227,7 @@ unpack64_n_b(unsigned char * __restrict in, uint64_t * __restrict out, [[maybe_u
     }
     else if constexpr (B == 32)
     {
-        unsigned char * ip = in;
+        const unsigned char * ip = in;
         for (unsigned i = 0; i < N; ++i)
         {
             uint64_t v = loadU32Fast(ip);
@@ -241,7 +241,7 @@ unpack64_n_b(unsigned char * __restrict in, uint64_t * __restrict out, [[maybe_u
     }
     else if constexpr (B == 16)
     {
-        unsigned char * ip = in;
+        const unsigned char * ip = in;
         for (unsigned i = 0; i < N; ++i)
         {
             uint64_t v = loadU16Fast(ip);
@@ -255,7 +255,7 @@ unpack64_n_b(unsigned char * __restrict in, uint64_t * __restrict out, [[maybe_u
     }
     else if constexpr (B == 8)
     {
-        unsigned char * ip = in;
+        const unsigned char * ip = in;
         for (unsigned i = 0; i < N; ++i)
         {
             uint64_t v = *ip++;
@@ -274,7 +274,7 @@ unpack64_n_b(unsigned char * __restrict in, uint64_t * __restrict out, [[maybe_u
 
 // Dispatch on runtime n (1-31) to compile-time N for 64-bit tail unpacking
 template <bool Delta1, unsigned B>
-static TURBOPFOR_ALWAYS_INLINE unsigned char * unpack64_tail(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
+static TURBOPFOR_ALWAYS_INLINE const unsigned char * unpack64_tail(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
 {
     switch (n)
     {
@@ -349,11 +349,11 @@ static TURBOPFOR_ALWAYS_INLINE unsigned char * unpack64_tail(unsigned char * in,
 template <bool Delta1>
 struct Bitunpack64ScalarImpl
 {
-    using Fn = unsigned char * (*)(unsigned char *, unsigned, uint64_t *, uint64_t);
+    using Fn = const unsigned char * (*)(const unsigned char *, unsigned, uint64_t *, uint64_t);
 
     template <unsigned B>
-    static TURBOPFOR_ALWAYS_INLINE unsigned char *
-    bitunpack_b(unsigned char * in, unsigned n, uint64_t * out, [[maybe_unused]] uint64_t start)
+    static TURBOPFOR_ALWAYS_INLINE const unsigned char *
+    bitunpack_b(const unsigned char * in, unsigned n, uint64_t * out, [[maybe_unused]] uint64_t start)
     {
         // Process 32-element blocks
         uint64_t * end = out + (n & ~31u);
@@ -380,7 +380,7 @@ struct Bitunpack64ScalarImpl
             return unpack64_tail<false, B>(in, n, out, 0ull);
     }
 
-    static unsigned char * dispatch(unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b)
+    static const unsigned char * dispatch(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b)
     {
         if (b == 0u) [[unlikely]]
         {

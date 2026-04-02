@@ -492,7 +492,7 @@ static TURBOPFOR_ALWAYS_INLINE void store_partial(unsigned char *& op, uint64_t 
 /// Load partial bytes from input (1-7 bytes into a 64-bit word)
 /// Used by bitunpack templates when the last word doesn't fill a full 8 bytes
 template <unsigned R>
-static TURBOPFOR_ALWAYS_INLINE uint64_t load_partial(unsigned char *& ip)
+static TURBOPFOR_ALWAYS_INLINE uint64_t load_partial(const unsigned char *& ip)
 {
     static_assert(R >= 1 && R <= 7);
     uint64_t v = 0;
@@ -536,20 +536,20 @@ static TURBOPFOR_ALWAYS_INLINE uint64_t load_partial(unsigned char *& ip)
 
 /// Scalar bit packing/unpacking (horizontal format)
 unsigned char * bitpack32Scalar(const uint32_t * in, unsigned n, unsigned char * out, unsigned b);
-unsigned char * bitunpack32Scalar(unsigned char * in, unsigned n, uint32_t * out, unsigned b);
+const unsigned char * bitunpack32Scalar(const unsigned char * in, unsigned n, uint32_t * out, unsigned b);
 
 /// Fused unpack + delta1 decode (much faster than separate unpack + delta)
-unsigned char * bitunpackd1_32Scalar(unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b);
+const unsigned char * bitunpackd1_32Scalar(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b);
 
 /// 128v32 bitpacking: 4-lane interleaved horizontal packing for 128 elements
 /// Each output lane k contains bits from values: v[k], v[k+4], v[k+8], ...
 unsigned char * bitpack128v32Scalar(const uint32_t * in, unsigned char * out, unsigned b);
-unsigned char * bitunpack128v32Scalar(unsigned char * in, uint32_t * out, unsigned b);
+const unsigned char * bitunpack128v32Scalar(const unsigned char * in, uint32_t * out, unsigned b);
 
 /// 256v32 bitpacking: 8-lane interleaved horizontal packing for 256 elements
 /// Each output lane k contains bits from values: v[k], v[k+8], v[k+16], ...
 unsigned char * bitpack256v32Scalar(const uint32_t * in, unsigned char * out, unsigned b);
-unsigned char * bitunpack256v32Scalar(unsigned char * in, uint32_t * out, unsigned b);
+const unsigned char * bitunpack256v32Scalar(const unsigned char * in, uint32_t * out, unsigned b);
 
 // Variable-byte encoding constants (matching TurboPFor vlcbyte.h scheme)
 //
@@ -586,7 +586,7 @@ constexpr unsigned VBYTE64_THRESHOLD_RAW = 2113688u; // _vbo3 = 16536 + 2097152 
 
 /// Inline single-value variable-byte decoder (matches TurboPFor _vbget32 macro)
 /// Uses likely() hints for optimal branch prediction since small values are most common.
-TURBOPFOR_ALWAYS_INLINE unsigned char * vbGet32Inline(unsigned char * in, uint32_t & x)
+TURBOPFOR_ALWAYS_INLINE const unsigned char * vbGet32Inline(const unsigned char * in, uint32_t & x)
 {
     const unsigned marker = *in++;
 
@@ -626,7 +626,7 @@ TURBOPFOR_ALWAYS_INLINE unsigned char * vbGet32Inline(unsigned char * in, uint32
 
 /// Variable-byte encoding/decoding (32-bit)
 unsigned char * vbEnc32(const uint32_t * in, unsigned n, unsigned char * out);
-unsigned char * vbDec32(unsigned char * in, unsigned n, uint32_t * out);
+const unsigned char * vbDec32(const unsigned char * in, unsigned n, uint32_t * out);
 
 /// Inline single-value variable-byte decoder for 64-bit values (matches TurboPFor _vbget64 macro)
 ///
@@ -635,7 +635,7 @@ unsigned char * vbDec32(unsigned char * in, unsigned n, uint32_t * out);
 /// - [0x98..0xD7]: 2-byte encoding, value = 152 + decode(marker, data_byte)
 /// - [0xD8..0xF7]: 3-byte encoding, value = 16536 + decode(marker, data16)
 /// - [0xF8..0xFD]: raw encoding, (marker - 0xF8 + 3) raw bytes follow
-TURBOPFOR_ALWAYS_INLINE unsigned char * vbGet64Inline(unsigned char * in, uint64_t & x)
+TURBOPFOR_ALWAYS_INLINE const unsigned char * vbGet64Inline(const unsigned char * in, uint64_t & x)
 {
     const unsigned marker = *in++;
 
@@ -671,7 +671,7 @@ TURBOPFOR_ALWAYS_INLINE unsigned char * vbGet64Inline(unsigned char * in, uint64
 
 /// Variable-byte encoding/decoding (64-bit)
 unsigned char * vbEnc64(const uint64_t * in, unsigned n, unsigned char * out);
-unsigned char * vbDec64(unsigned char * __restrict in, unsigned n, uint64_t * __restrict out);
+const unsigned char * vbDec64(const unsigned char * __restrict in, unsigned n, uint64_t * __restrict out);
 
 /// P4 bit width selection (32-bit)
 unsigned p4Bits32(const uint32_t * in, unsigned n, unsigned * out_exception_bits);
@@ -687,20 +687,20 @@ void writeHeader64(unsigned char *& out, unsigned b, unsigned bx);
 
 /// Scalar bit packing/unpacking for 64-bit values (horizontal format)
 unsigned char * bitpack64Scalar(const uint64_t * in, unsigned n, unsigned char * out, unsigned b);
-unsigned char * bitunpack64Scalar(unsigned char * in, unsigned n, uint64_t * out, unsigned b);
+const unsigned char * bitunpack64Scalar(const unsigned char * in, unsigned n, uint64_t * out, unsigned b);
 
 /// Fused unpack + delta1 decode for 64-bit values
-unsigned char * bitunpackd1_64Scalar(unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b);
+const unsigned char * bitunpackd1_64Scalar(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b);
 
 /// 128v64 bitpacking: 2-lane interleaved horizontal packing for 128 elements
 /// 128 bits / 64 bits = 2 lanes, 64 groups x 2 lanes = 128 elements
 unsigned char * bitpack128v64Scalar(const uint64_t * in, unsigned char * out, unsigned b);
-unsigned char * bitunpack128v64Scalar(unsigned char * in, uint64_t * out, unsigned b);
+const unsigned char * bitunpack128v64Scalar(const unsigned char * in, uint64_t * out, unsigned b);
 
 /// 256v64 bitpacking: 4-lane interleaved horizontal packing for 256 elements
 /// 256 bits / 64 bits = 4 lanes, 64 groups x 4 lanes = 256 elements
 unsigned char * bitpack256v64Scalar(const uint64_t * in, unsigned char * out, unsigned b);
-unsigned char * bitunpack256v64Scalar(unsigned char * in, uint64_t * out, unsigned b);
+const unsigned char * bitunpack256v64Scalar(const unsigned char * in, uint64_t * out, unsigned b);
 
 /// Apply delta1 decoding for 256-element 64-bit blocks
 void applyDelta1_256_64(uint64_t * out, unsigned n, uint64_t start);

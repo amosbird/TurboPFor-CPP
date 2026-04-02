@@ -71,10 +71,10 @@ bitd1unpack128v32_ex(const unsigned char * in, uint32_t * out, unsigned b, uint3
 /// b <= 32: IP32 shuffle + bitpack128v32 SIMD
 /// b > 32: scalar bitpack64
 unsigned char * bitpack128v64(const uint64_t * in, unsigned char * out, unsigned b);
-unsigned char * bitunpack128v64(const unsigned char * in, uint64_t * out, unsigned b);
+const unsigned char * bitunpack128v64(const unsigned char * in, uint64_t * out, unsigned b);
 
 /// Fused 128v64 unpack + delta1 decode (saves one full pass over output)
-unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start);
+const unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start);
 
 /// Fused 128v64 unpack + delta1 + exception patching (single-pass SSSE3, b+bx <= 32 only)
 /// Exceptions must be pre-unpacked as uint32_t[] into pex; pex is advanced past consumed exceptions.

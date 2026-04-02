@@ -37,13 +37,13 @@ extern "C" unsigned char * vbdec64(unsigned char * in, unsigned n, uint64_t * ou
 namespace turbopfor::scalar::detail
 {
 unsigned char * bitpack32Scalar(const uint32_t * in, unsigned n, unsigned char * out, unsigned b);
-unsigned char * bitunpack32Scalar(unsigned char * in, unsigned n, uint32_t * out, unsigned b);
-unsigned char * bitunpackd1_32Scalar(unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b);
+const unsigned char * bitunpack32Scalar(const unsigned char * in, unsigned n, uint32_t * out, unsigned b);
+const unsigned char * bitunpackd1_32Scalar(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b);
 unsigned char * bitpack64Scalar(const uint64_t * in, unsigned n, unsigned char * out, unsigned b);
-unsigned char * bitunpack64Scalar(unsigned char * in, unsigned n, uint64_t * out, unsigned b);
-unsigned char * bitunpackd1_64Scalar(unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b);
+const unsigned char * bitunpack64Scalar(const unsigned char * in, unsigned n, uint64_t * out, unsigned b);
+const unsigned char * bitunpackd1_64Scalar(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b);
 unsigned char * vbEnc64(const uint64_t * in, unsigned n, unsigned char * out);
-unsigned char * vbDec64(unsigned char * __restrict in, unsigned n, uint64_t * __restrict out);
+const unsigned char * vbDec64(const unsigned char * __restrict in, unsigned n, uint64_t * __restrict out);
 }
 
 namespace

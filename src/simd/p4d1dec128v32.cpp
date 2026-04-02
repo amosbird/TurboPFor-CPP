@@ -42,7 +42,7 @@ __attribute__((noinline)) const unsigned char * p4D1Dec128Exceptions(
     /// SIMD loads read 4 elements at a time; unpoison to avoid false positives
     /// when num is not a multiple of 4 (unused lanes are masked out by pshufb)
     TURBOPFOR_MSAN_UNPOISON(ex, sizeof(ex));
-    ip = scalar::detail::bitunpack32Scalar(const_cast<unsigned char *>(ip), num, ex, bx);
+    ip = scalar::detail::bitunpack32Scalar(ip, num, ex, bx);
 
     const uint32_t * pex = ex;
     ip = bitd1unpack128v32_ex(ip, out, b, start, bitmap, pex);
@@ -52,14 +52,14 @@ __attribute__((noinline)) const unsigned char * p4D1Dec128Exceptions(
 
 } // namespace
 
-unsigned char * p4D1Dec128v32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start)
+const unsigned char * p4D1Dec128v32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start)
 {
     using namespace turbopfor::simd::detail;
 
     if (n == 0u)
         return in;
 
-    unsigned char * ip = in;
+    const unsigned char * ip = in;
     unsigned b = *ip++;
 
     // Case 1: All values equal (b & 0xC0 == 0xC0)
@@ -88,26 +88,26 @@ unsigned char * p4D1Dec128v32(unsigned char * in, unsigned n, uint32_t * out, ui
         // Direct tail call to bitd1unpack128v32 - matches TurboPFor structure
         if (!(b & 0x80u))
         {
-            return const_cast<unsigned char *>(bitd1unpack128v32(ip, out, b, start));
+            return bitd1unpack128v32(ip, out, b, start);
         }
 
         // Has exception bitmap but may have zero exceptions
         b &= 0x7Fu;
         if (bx == 0u)
         {
-            return const_cast<unsigned char *>(bitd1unpack128v32(ip, out, b, start));
+            return bitd1unpack128v32(ip, out, b, start);
         }
 
         // SLOW PATH: Handle exceptions
-        return const_cast<unsigned char *>(p4D1Dec128Exceptions(ip, n, out, start, b, bx));
+        return p4D1Dec128Exceptions(ip, n, out, start, b, bx);
     }
 
     // Case 3: Variable byte format (b & 0x40 != 0)
     unsigned bx = *ip++;
     b &= 0x3Fu;
     uint32_t ex[MAX_VALUES + 64]; // No initialization needed - vbDec32 writes all values we read
-    ip = const_cast<unsigned char *>(bitunpack128v32(ip, out, b));
-    ip = const_cast<unsigned char *>(vbDec32(ip, bx, ex));
+    ip = bitunpack128v32(ip, out, b);
+    ip = vbDec32(ip, bx, ex);
 
     // Unrolled exception merge loop (8x unrolled to match TurboPFor)
     unsigned i = 0;

@@ -5,10 +5,10 @@
 namespace turbopfor::simd
 {
 
-unsigned char * p4Dec256v64(unsigned char * in, unsigned n, uint64_t * out)
+const unsigned char * p4Dec256v64(const unsigned char * in, unsigned n, uint64_t * out)
 {
     unsigned remaining = n;
-    unsigned char * ip = in;
+    const unsigned char * ip = in;
     uint64_t * op = out;
 
     while (remaining > 0u)

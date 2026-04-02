@@ -101,10 +101,10 @@ const unsigned char * p4D1Dec256PayloadBitmap(
 
     // Phase 2: Unpack exception values (horizontal bitpacking)
     uint32_t exceptions[MAX_VALUES + 64];
-    ip = bitunpack32Scalar(const_cast<unsigned char *>(ip), exception_count, exceptions, bx);
+    ip = bitunpack32Scalar(ip, exception_count, exceptions, bx);
 
     // Phase 3: Unpack base values (256v32 vertical bitpacking)
-    ip = bitunpack256v32Scalar(const_cast<unsigned char *>(ip), out, b);
+    ip = bitunpack256v32Scalar(ip, out, b);
 
     // Phase 4: Apply patches
     //
@@ -159,7 +159,7 @@ const unsigned char * p4D1Dec256Payload(
     if ((b & 0x80u) == 0u)
     {
         // No exceptions - simple unpack + delta1
-        unsigned char * ip = bitunpack256v32Scalar(const_cast<unsigned char *>(in), out, b);
+        const unsigned char * ip = bitunpack256v32Scalar(in, out, b);
         applyDelta1_256(out, n, start);
         return ip;
     }
@@ -170,7 +170,7 @@ const unsigned char * p4D1Dec256Payload(
     if (bx == 0u)
     {
         // Bitmap says no exceptions - simple unpack + delta1
-        unsigned char * ip = bitunpack256v32Scalar(const_cast<unsigned char *>(in), out, b);
+        const unsigned char * ip = bitunpack256v32Scalar(in, out, b);
         applyDelta1_256(out, n, start);
         return ip;
     }
@@ -195,14 +195,14 @@ const unsigned char * p4D1Dec256Payload(
 // Returns: Pointer past end of consumed input
 //
 // Binary compatibility: Correctly decodes data from both scalar and SIMD encoders
-unsigned char * p4D1Dec256v32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start)
+const unsigned char * p4D1Dec256v32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start)
 {
     using namespace turbopfor::scalar::detail;
 
     if (n == 0u)
         return in;
 
-    unsigned char * ip = in;
+    const unsigned char * ip = in;
     unsigned b = *ip++;
 
     // Case 1: Constant block (all values identical)
@@ -238,7 +238,7 @@ unsigned char * p4D1Dec256v32(unsigned char * in, unsigned n, uint32_t * out, ui
         if (b & 0x80u)
             bx = *ip++; // Read exception bit width
 
-        return const_cast<unsigned char *>(p4D1Dec256Payload(ip, n, out, start, b, bx));
+        return p4D1Dec256Payload(ip, n, out, start, b, bx);
     }
 
     // Case 3: Variable-byte exception encoding

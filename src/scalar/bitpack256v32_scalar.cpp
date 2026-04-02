@@ -155,7 +155,7 @@ unsigned char * bitpack256v32Scalar(const uint32_t * in, unsigned char * out, un
 //   b: Bit width (0-32)
 //
 // Returns: Pointer to end of consumed input data
-unsigned char * bitunpack256v32Scalar(unsigned char * in, uint32_t * out, unsigned b)
+const unsigned char * bitunpack256v32Scalar(const unsigned char * in, uint32_t * out, unsigned b)
 {
     // Special case: b=0 means all values are 0
     if (b == 0u)
@@ -178,7 +178,7 @@ unsigned char * bitunpack256v32Scalar(unsigned char * in, uint32_t * out, unsign
     unsigned shift = 0;
 
     // Track position in input stream
-    unsigned char * inp = in;
+    const unsigned char * inp = in;
 
     // Process 32 groups, each group produces 8 output values
     for (unsigned g = 0; g < V256_GROUP_COUNT; ++g)

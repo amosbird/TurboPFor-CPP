@@ -3,7 +3,7 @@
 namespace turbopfor::scalar::detail
 {
 
-unsigned char * bitunpackd1_32Scalar(unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b)
+const unsigned char * bitunpackd1_32Scalar(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b)
 {
     return Bitunpack32ScalarImpl<true>::dispatch(in, n, out, start, b);
 }

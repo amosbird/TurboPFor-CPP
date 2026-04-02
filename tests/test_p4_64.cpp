@@ -733,7 +733,7 @@ int testVb64Compat(const uint64_t * values, unsigned n, const char * label)
     }
 
     std::memset(cpp_dec, 0, sizeof(cpp_dec));
-    unsigned char * dec_end = turbopfor::scalar::detail::vbDec64(c_buf, n, cpp_dec);
+    const unsigned char * dec_end = turbopfor::scalar::detail::vbDec64(c_buf, n, cpp_dec);
     int dec_len = static_cast<int>(dec_end - c_buf);
 
     if (dec_len != c_len)

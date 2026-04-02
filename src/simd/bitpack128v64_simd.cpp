@@ -62,7 +62,7 @@ ALWAYS_INLINE const unsigned char * bitunpack_sse_sto64_hybrid_entry(const unsig
         return bitunpack_sse_sto64_periodic_entry<B, Count>(in, out);
 }
 
-unsigned char * bitunpack128v64(const unsigned char * in, uint64_t * out, unsigned b)
+const unsigned char * bitunpack128v64(const unsigned char * in, uint64_t * out, unsigned b)
 {
     if (b <= 32u)
     {
@@ -72,11 +72,11 @@ unsigned char * bitunpack128v64(const unsigned char * in, uint64_t * out, unsign
         STO64_SWITCH(b, CALL_STO64);
 #undef CALL_STO64
 
-        return const_cast<unsigned char *>(end);
+        return end;
     }
 
     // When b > 32, use scalar 64-bit horizontal bitunpacking
-    return scalar::detail::bitunpack64Scalar(const_cast<unsigned char *>(in), V128_64_BLOCK_SIZE, out, b);
+    return scalar::detail::bitunpack64Scalar(in, V128_64_BLOCK_SIZE, out, b);
 }
 
 // ============================================================================

@@ -99,12 +99,12 @@ p4D1Dec128v64PayloadBitmap(const unsigned char * in, unsigned n, uint64_t * out,
     // Exceptions are ALWAYS packed with bitpack64 (scalar), regardless of b.
     // The encoder uses: out = bitpack64Scalar(exceptions, exception_count, out, bx)
     uint64_t exceptions[MAX_VALUES + 64];
-    ip = bitunpack64Scalar(const_cast<unsigned char *>(ip), exception_count, exceptions, bx);
+    ip = bitunpack64Scalar(ip, exception_count, exceptions, bx);
 
     // Phase 3: Unpack base values (128v64 hybrid format)
     //
     // Uses bitunpack128v64: 128v32 when b<=32, scalar64 when b>32
-    ip = bitunpack128v64Scalar(const_cast<unsigned char *>(ip), out, b);
+    ip = bitunpack128v64Scalar(ip, out, b);
 
     // Phase 4: Apply patches
     //
@@ -154,14 +154,14 @@ p4D1Dec128v64PayloadBitmap(const unsigned char * in, unsigned n, uint64_t * out,
 //   start: Initial value for delta1 decoding
 //
 // Returns: Pointer past end of consumed input
-unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
+const unsigned char * p4D1Dec128v64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
 {
     using namespace turbopfor::scalar::detail;
 
     if (n == 0u)
         return in;
 
-    unsigned char * ip = in;
+    const unsigned char * ip = in;
     unsigned b = *ip++;
 
     // Case 1: Constant block (all values identical)
@@ -216,7 +216,7 @@ unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, ui
         }
 
         // Bitmap exception handling
-        return const_cast<unsigned char *>(p4D1Dec128v64PayloadBitmap(ip, n, out, start, b, bx));
+        return p4D1Dec128v64PayloadBitmap(ip, n, out, start, b, bx);
     }
 
     // Case 3: Variable-byte exception encoding
@@ -254,14 +254,14 @@ unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, ui
 //
 // Same as p4D1Dec128v64 but without delta1 prefix sum.
 // Matches TurboPFor C's p4dec128v64 behavior.
-unsigned char * p4Dec128v64(unsigned char * in, unsigned n, uint64_t * out)
+const unsigned char * p4Dec128v64(const unsigned char * in, unsigned n, uint64_t * out)
 {
     using namespace turbopfor::scalar::detail;
 
     if (n == 0u)
         return in;
 
-    unsigned char * ip = in;
+    const unsigned char * ip = in;
     unsigned b = *ip++;
 
     // Case 1: Constant block

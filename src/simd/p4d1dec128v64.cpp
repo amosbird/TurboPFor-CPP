@@ -35,7 +35,7 @@ bitunpack128v64_noinline(const unsigned char * in, uint64_t * out, unsigned b)
 #undef CALL_STO64_NODELTA
 }
 
-unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start)
+const unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start)
 {
     if (b <= 32u)
     {
@@ -57,7 +57,7 @@ unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, uns
                 acc += out[i + 3] + 1; out[i + 3] = acc;
             }
 
-            return const_cast<unsigned char *>(ip_end);
+            return ip_end;
         }
 
         __m128i sv = _mm_set1_epi32(static_cast<uint32_t>(start));
@@ -66,11 +66,11 @@ unsigned char * bitunpackD1_128v64(const unsigned char * in, uint64_t * out, uns
         STO64_SWITCH(b, CALL_STO64_D1);
 #undef CALL_STO64_D1
 
-        return const_cast<unsigned char *>(ip_end);
+        return ip_end;
     }
 
     return scalar::detail::bitunpackd1_64Scalar(
-        const_cast<unsigned char *>(in), V128_64_BLOCK_SIZE, out, start, b);
+        in, V128_64_BLOCK_SIZE, out, start, b);
 }
 
 } // namespace detail
@@ -119,7 +119,7 @@ p4D1Dec128v64PayloadBitmap(const unsigned char * in, unsigned n, uint64_t * out,
     if (b + bx <= 32u)
     {
         alignas(16) uint32_t ex[MAX_VALUES + 64];
-        const unsigned char * ex_end = scalar::detail::bitunpack32Scalar(const_cast<unsigned char *>(ip), exception_count, ex, bx);
+        const unsigned char * ex_end = scalar::detail::bitunpack32Scalar(ip, exception_count, ex, bx);
 
         // Try fused SIMD path: bitunpack + SSSE3 exception merge + delta1 + STO64
         // Uses periodic template (smaller L1i footprint than fully-unrolled non-delta).
@@ -155,7 +155,7 @@ p4D1Dec128v64PayloadBitmap(const unsigned char * in, unsigned n, uint64_t * out,
 
     // Phase 2: Unpack exception values (scalar bitpack64)
     uint64_t exceptions[MAX_VALUES + 64];
-    ip = scalar::detail::bitunpack64Scalar(const_cast<unsigned char *>(ip), exception_count, exceptions, bx);
+    ip = scalar::detail::bitunpack64Scalar(ip, exception_count, exceptions, bx);
 
     // Phase 3: Unpack base values (SIMD bitunpack128v64)
     ip = bitunpack128v64(ip, out, b);
@@ -188,14 +188,14 @@ p4D1Dec128v64PayloadBitmap(const unsigned char * in, unsigned n, uint64_t * out,
 
 } // namespace
 
-unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
+const unsigned char * p4D1Dec128v64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
 {
     using namespace turbopfor::simd::detail;
 
     if (n == 0u)
         return in;
 
-    unsigned char * ip = in;
+    const unsigned char * ip = in;
     unsigned b = *ip++;
 
     // Case 1: Constant block
@@ -235,7 +235,7 @@ unsigned char * p4D1Dec128v64(unsigned char * in, unsigned n, uint64_t * out, ui
             return ip;
         }
 
-        return const_cast<unsigned char *>(p4D1Dec128v64PayloadBitmap(ip, n, out, start, b, bx));
+        return p4D1Dec128v64PayloadBitmap(ip, n, out, start, b, bx);
     }
 
     // Case 3: Variable-byte exceptions

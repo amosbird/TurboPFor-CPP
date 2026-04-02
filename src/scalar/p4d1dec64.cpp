@@ -13,7 +13,7 @@ namespace
 // and bitunpack64Scalar/bitunpackd1_64Scalar.
 //
 // Format: [bitmap][patch bits][base bits]
-unsigned char * p4D1Dec64PayloadExceptions(unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b, unsigned bx)
+const unsigned char * p4D1Dec64PayloadExceptions(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b, unsigned bx)
 {
     using namespace turbopfor::scalar::detail;
 
@@ -45,7 +45,7 @@ unsigned char * p4D1Dec64PayloadExceptions(unsigned char * in, unsigned n, uint6
     }
 
     // Advance past bitmap
-    unsigned char * input_ptr = in + pad8(n);
+    const unsigned char * input_ptr = in + pad8(n);
 
     // Phase 2: Unpack exception patch bits and base bits (both 64-bit)
     uint64_t exception_values[MAX_VALUES];
@@ -94,14 +94,14 @@ unsigned char * p4D1Dec64PayloadExceptions(unsigned char * in, unsigned n, uint6
 // - 64-bit constant values (up to 8 bytes)
 // - bitunpackd1_64Scalar / bitunpack64Scalar for unpacking
 // - vbDec64 for variable-byte exception decoding
-unsigned char * p4D1Dec64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
+const unsigned char * p4D1Dec64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
 {
     if (n == 0u)
         return in;
 
     using namespace turbopfor::scalar::detail;
 
-    unsigned char * input_ptr = in;
+    const unsigned char * input_ptr = in;
     unsigned base_bits = *input_ptr++;
 
     // Fast path: Simple bitpacking (no exceptions)

@@ -16,7 +16,7 @@ unsigned char * vbEnc32_256v(const uint32_t * in, unsigned n, unsigned char * ou
 
 const unsigned char * vbDec32_256v(const unsigned char * in, unsigned n, uint32_t * out)
 {
-    return scalar::detail::vbDec32(const_cast<unsigned char *>(in), n, out);
+    return scalar::detail::vbDec32(in, n, out);
 }
 
 unsigned p4Bits32_256v(const uint32_t * in, unsigned n, unsigned * pbx)
