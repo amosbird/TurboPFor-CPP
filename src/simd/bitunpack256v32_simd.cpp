@@ -31,6 +31,13 @@ ALWAYS_INLINE const unsigned char * bitd1unpack_256v_ex_wrapper(
     return bitunpack_avx2_entry<B, 256, true, true>(in, out, sv, bitmap, pex);
 }
 
+template <unsigned B>
+ALWAYS_INLINE const unsigned char * bitunpack_256v_ex_wrapper(
+    const unsigned char * __restrict in, uint32_t * __restrict out, __m256i sv, const uint64_t * bitmap, const uint32_t *& pex)
+{
+    return bitunpack_avx2_entry<B, 256, false, true>(in, out, sv, bitmap, pex);
+}
+
 } // namespace
 
 // Dispatch Tables
@@ -48,6 +55,9 @@ static const bitunpack256v32_func bitunpack_table_256v[33] = {GEN_TABLE_AVX2(bit
 typedef const unsigned char * (*bitd1unpack256v32_ex_func)(const unsigned char *, uint32_t *, __m256i, const uint64_t *, const uint32_t *&);
 static const bitd1unpack256v32_ex_func bitd1unpack_ex_table_256v[33] = {GEN_TABLE_AVX2(bitd1unpack_256v_ex_wrapper)};
 
+typedef const unsigned char * (*bitunpack256v32_ex_func)(const unsigned char *, uint32_t *, __m256i, const uint64_t *, const uint32_t *&);
+static const bitunpack256v32_ex_func bitunpack_ex_table_256v[33] = {GEN_TABLE_AVX2(bitunpack_256v_ex_wrapper)};
+
 const unsigned char * bitd1unpack256v32(const unsigned char * in, uint32_t * out, unsigned b, uint32_t start)
 {
     __m256i sv = _mm256_set1_epi32(static_cast<int>(start));
@@ -64,6 +74,13 @@ bitd1unpack256v32_ex(const unsigned char * in, uint32_t * out, unsigned b, uint3
 {
     __m256i sv = _mm256_set1_epi32(static_cast<int>(start));
     return bitd1unpack_ex_table_256v[b](in, out, sv, bitmap, pex);
+}
+
+const unsigned char *
+bitunpack256v32_ex(const unsigned char * in, uint32_t * out, unsigned b, const uint64_t * bitmap, const uint32_t *& pex)
+{
+    __m256i sv = _mm256_setzero_si256();
+    return bitunpack_ex_table_256v[b](in, out, sv, bitmap, pex);
 }
 
 } // namespace turbopfor::simd::detail

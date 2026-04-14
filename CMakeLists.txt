@@ -73,6 +73,7 @@ endif()
 set(TURBOPFOR_SOURCES
   src/dispatch.cpp
   src/scalar/p4enc32.cpp
+  src/scalar/p4dec32.cpp
   src/scalar/p4d1dec32.cpp
   src/scalar/p4_scalar_bitpack32.cpp
   src/scalar/p4_scalar_bitunpack32.cpp
@@ -91,9 +92,11 @@ set(TURBOPFOR_SOURCES
   src/scalar/p4d1dec256v64_scalar.cpp
   src/scalar/bitpack128v32_scalar.cpp
   src/scalar/p4enc128v32_scalar.cpp
+  src/scalar/p4dec128v32_scalar.cpp
   src/scalar/p4d1dec128v32_scalar.cpp
   src/scalar/bitpack256v32_scalar.cpp
   src/scalar/p4enc256v32_scalar.cpp
+  src/scalar/p4dec256v32_scalar.cpp
   src/scalar/p4d1dec256v32_scalar.cpp
 )
 
@@ -101,6 +104,7 @@ set(TURBOPFOR_SOURCES
 if(ENABLE_SSE42)
   list(APPEND TURBOPFOR_SOURCES
     src/simd/p4enc128v32.cpp
+    src/simd/p4dec128v32.cpp
     src/simd/p4d1dec128v32.cpp
     src/simd/p4_simd_internal.cpp
     src/simd/bitpack128v32_simd.cpp
@@ -118,6 +122,7 @@ endif()
 if(ENABLE_AVX2)
   list(APPEND TURBOPFOR_SOURCES
     src/simd/p4enc256v32.cpp
+    src/simd/p4dec256v32.cpp
     src/simd/p4d1dec256v32.cpp
     src/simd/p4_simd_internal_256v.cpp
     src/simd/bitpack256v32_simd.cpp
@@ -147,6 +152,7 @@ endif()
 if(ENABLE_SSE42)
   set_source_files_properties(
     src/simd/p4enc128v32.cpp
+    src/simd/p4dec128v32.cpp
     src/simd/p4d1dec128v32.cpp
     src/simd/p4_simd_internal.cpp
     src/simd/bitpack128v32_simd.cpp
@@ -162,6 +168,7 @@ endif()
 if(ENABLE_AVX2)
   set_source_files_properties(
     src/simd/p4enc256v32.cpp
+    src/simd/p4dec256v32.cpp
     src/simd/p4d1dec256v32.cpp
     src/simd/p4_simd_internal_256v.cpp
     src/simd/bitpack256v32_simd.cpp
@@ -214,7 +221,9 @@ add_executable(turbopfor_test
   tests/test_main.cpp
   tests/test_p4_32.cpp
   tests/test_p4_64.cpp
+  tests/test_p4dec_32.cpp
   src/simd/p4enc128v32.cpp
+  src/simd/p4dec128v32.cpp
   src/simd/p4d1dec128v32.cpp
   src/simd/p4_simd_internal.cpp
   src/simd/bitpack128v32_simd.cpp
@@ -231,6 +240,7 @@ target_compile_options(turbopfor_test PRIVATE ${TURBOPFOR_BASE_COMPILE_OPTIONS})
 # Set SSE4.2 flags for SIMD source files in test
 set_source_files_properties(
   src/simd/p4enc128v32.cpp
+  src/simd/p4dec128v32.cpp
   src/simd/p4d1dec128v32.cpp
   src/simd/p4_simd_internal.cpp
   src/simd/bitpack128v32_simd.cpp

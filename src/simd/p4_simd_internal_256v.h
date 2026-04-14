@@ -47,6 +47,10 @@ const unsigned char * bitd1unpack256v32(const unsigned char * in, uint32_t * out
 const unsigned char *
 bitd1unpack256v32_ex(const unsigned char * in, uint32_t * out, unsigned b, uint32_t start, const uint64_t * bitmap, const uint32_t *& pex);
 
+/// AVX2 256v vertical bitunpacking with exception patching (fused, no delta)
+const unsigned char *
+bitunpack256v32_ex(const unsigned char * in, uint32_t * out, unsigned b, const uint64_t * bitmap, const uint32_t *& pex);
+
 /// Variable-byte encoding/decoding (reuse from scalar - not SIMD critical path)
 unsigned char * vbEnc32_256v(const uint32_t * in, unsigned n, unsigned char * out);
 const unsigned char * vbDec32_256v(const unsigned char * in, unsigned n, uint32_t * out);

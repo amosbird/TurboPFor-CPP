@@ -12,11 +12,17 @@ namespace turbopfor::simd
 /// P4 encoding (128-element vertical bitpacking format)
 unsigned char * p4Enc128v32(uint32_t * in, unsigned n, unsigned char * out);
 
+/// P4 decoding without delta1 (128-element vertical bitpacking format)
+const unsigned char * p4Dec128v32(const unsigned char * in, unsigned n, uint32_t * out);
+
 /// P4 decoding with delta1 (128-element vertical bitpacking format)
 const unsigned char * p4D1Dec128v32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
 
 /// P4 encoding (256-element vertical bitpacking format, AVX2)
 unsigned char * p4Enc256v32(uint32_t * in, unsigned n, unsigned char * out);
+
+/// P4 decoding without delta1 (256-element vertical bitpacking format, AVX2)
+const unsigned char * p4Dec256v32(const unsigned char * in, unsigned n, uint32_t * out);
 
 /// P4 decoding with delta1 (256-element vertical bitpacking format, AVX2)
 const unsigned char * p4D1Dec256v32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start);

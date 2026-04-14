@@ -9,6 +9,11 @@ unsigned runBitunpackD1CompatibilityTest();
 unsigned runCrossValidation256vTest();
 unsigned runBinaryCompatibility256vTest();
 
+// 32-bit non-delta decode tests
+unsigned runP4Dec32CompatibilityTest();
+unsigned runP4Dec128v32CompatibilityTest();
+unsigned runP4Dec256v32CompatibilityTest();
+
 // 64-bit tests
 unsigned runBitpack64CompatibilityTest();
 unsigned runBinaryCompatibility64Test();
@@ -26,6 +31,10 @@ int main()
     unsigned failed_256v_cross = runCrossValidation256vTest();
     unsigned failed_256v_compat = runBinaryCompatibility256vTest();
 
+    unsigned failed_p4dec32 = runP4Dec32CompatibilityTest();
+    unsigned failed_p4dec128v32 = runP4Dec128v32CompatibilityTest();
+    unsigned failed_p4dec256v32 = runP4Dec256v32CompatibilityTest();
+
     unsigned failed_bitpack64 = runBitpack64CompatibilityTest();
     unsigned failed_p4_64 = runBinaryCompatibility64Test();
     unsigned failed_128v64 = runBinaryCompatibility128v64Test();
@@ -33,7 +42,7 @@ int main()
     unsigned failed_vbyte64 = runVbyte64CompatibilityTest();
 
     unsigned total = failed_p4_32 + failed_128v_cross + failed_128v_compat + failed_bitunpack + failed_bitunpack_d1 + failed_256v_cross
-        + failed_256v_compat + failed_bitpack64 + failed_p4_64 + failed_128v64 + failed_256v64 + failed_vbyte64;
+        + failed_256v_compat + failed_p4dec32 + failed_p4dec128v32 + failed_p4dec256v32 + failed_bitpack64 + failed_p4_64 + failed_128v64 + failed_256v64 + failed_vbyte64;
 
     std::printf("=== Summary ===\n");
     std::printf("  p4enc/dec 32-bit:      %u failures\n", failed_p4_32);
@@ -43,6 +52,9 @@ int main()
     std::printf("  bitunpack32 d1:        %u failures\n", failed_bitunpack_d1);
     std::printf("  256v32 cross:          %u failures\n", failed_256v_cross);
     std::printf("  256v32 compat:         %u failures\n", failed_256v_compat);
+    std::printf("  p4dec32:               %u failures\n", failed_p4dec32);
+    std::printf("  p4dec128v32:           %u failures\n", failed_p4dec128v32);
+    std::printf("  p4dec256v32:           %u failures\n", failed_p4dec256v32);
     std::printf("  bitpack64:             %u failures\n", failed_bitpack64);
     std::printf("  p4enc/dec 64-bit:      %u failures\n", failed_p4_64);
     std::printf("  128v64 compat:         %u failures\n", failed_128v64);

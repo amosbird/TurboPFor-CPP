@@ -67,6 +67,10 @@ const unsigned char * bitd1unpack128v32(const unsigned char * in, uint32_t * out
 const unsigned char *
 bitd1unpack128v32_ex(const unsigned char * in, uint32_t * out, unsigned b, uint32_t start, const uint64_t * bitmap, const uint32_t *& pex);
 
+/// SSE4.1 128v vertical bitunpacking with exception patching (fused, no delta)
+const unsigned char *
+bitunpack128v32_ex(const unsigned char * in, uint32_t * out, unsigned b, const uint64_t * bitmap, const uint32_t *& pex);
+
 /// SSE4.1 128v64 hybrid bitpacking (128 x 64-bit values)
 /// b <= 32: IP32 shuffle + bitpack128v32 SIMD
 /// b > 32: scalar bitpack64

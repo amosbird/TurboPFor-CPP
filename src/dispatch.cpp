@@ -14,18 +14,32 @@ unsigned char * p4Enc32(uint32_t * in, unsigned n, unsigned char * out)
     return turbopfor::scalar::p4Enc32(in, n, out);
 }
 
+const unsigned char * p4Dec32(const unsigned char * in, unsigned n, uint32_t * out)
+{
+    return turbopfor::scalar::p4Dec32(in, n, out);
+}
+
 const unsigned char * p4D1Dec32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start)
 {
     return turbopfor::scalar::p4D1Dec32(in, n, out, start);
 }
 
-// p4enc128v32 and p4d1dec128v32 use SIMD if available, otherwise scalar
+// p4enc128v32 and p4dec128v32/p4d1dec128v32 use SIMD if available, otherwise scalar
 unsigned char * p4Enc128v32(uint32_t * in, unsigned n, unsigned char * out)
 {
 #ifdef ENABLE_SSE42
     return turbopfor::simd::p4Enc128v32(in, n, out);
 #else
     return turbopfor::scalar::p4Enc128v32(in, n, out);
+#endif
+}
+
+const unsigned char * p4Dec128v32(const unsigned char * in, unsigned n, uint32_t * out)
+{
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4Dec128v32(in, n, out);
+#else
+    return turbopfor::scalar::p4Dec128v32(in, n, out);
 #endif
 }
 
@@ -38,13 +52,22 @@ const unsigned char * p4D1Dec128v32(const unsigned char * in, unsigned n, uint32
 #endif
 }
 
-// p4enc256v32 and p4d1dec256v32 use SIMD (AVX2) if available, otherwise scalar
+// p4enc256v32 and p4dec256v32/p4d1dec256v32 use SIMD (AVX2) if available, otherwise scalar
 unsigned char * p4Enc256v32(uint32_t * in, unsigned n, unsigned char * out)
 {
 #ifdef ENABLE_AVX2
     return turbopfor::simd::p4Enc256v32(in, n, out);
 #else
     return turbopfor::scalar::p4Enc256v32(in, n, out);
+#endif
+}
+
+const unsigned char * p4Dec256v32(const unsigned char * in, unsigned n, uint32_t * out)
+{
+#ifdef ENABLE_AVX2
+    return turbopfor::simd::p4Dec256v32(in, n, out);
+#else
+    return turbopfor::scalar::p4Dec256v32(in, n, out);
 #endif
 }
 

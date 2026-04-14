@@ -69,4 +69,26 @@ const unsigned char * bitd1unpack128v32_ex(
     return funcs[b](in, out, sv, bitmap, pex);
 }
 
+// --- bitunpack128v32_ex (Fused Exceptions, no Delta) ---
+using BitUnpackExFn = const unsigned char * (*)(const unsigned char *, uint32_t *, __m128i, const uint64_t *, const uint32_t *&);
+
+template <unsigned B>
+const unsigned char *
+bitunpack128v32_ex_impl(const unsigned char * in, uint32_t * out, __m128i sv, const uint64_t * bitmap, const uint32_t *& pex)
+{
+    return bitunpack_sse_entry<B, 128, false, true>(in, out, sv, bitmap, pex);
+}
+
+const unsigned char * bitunpack128v32_ex(
+    const unsigned char * __restrict in,
+    uint32_t * __restrict out,
+    unsigned b,
+    const uint64_t * bitmap,
+    const uint32_t *& pex)
+{
+    static const BitUnpackExFn funcs[] = {GEN_TABLE(bitunpack128v32_ex_impl)};
+    __m128i sv = _mm_setzero_si128();
+    return funcs[b](in, out, sv, bitmap, pex);
+}
+
 } // namespace turbopfor::simd::detail
