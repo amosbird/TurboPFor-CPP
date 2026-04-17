@@ -14,6 +14,11 @@ unsigned char * p4Enc32(uint32_t * in, unsigned n, unsigned char * out)
     return turbopfor::scalar::p4Enc32(in, n, out);
 }
 
+unsigned char * p4D1Enc32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start)
+{
+    return turbopfor::scalar::p4D1Enc32(in, n, out, start);
+}
+
 const unsigned char * p4Dec32(const unsigned char * in, unsigned n, uint32_t * out)
 {
     return turbopfor::scalar::p4Dec32(in, n, out);
@@ -31,6 +36,15 @@ unsigned char * p4Enc128v32(uint32_t * in, unsigned n, unsigned char * out)
     return turbopfor::simd::p4Enc128v32(in, n, out);
 #else
     return turbopfor::scalar::p4Enc128v32(in, n, out);
+#endif
+}
+
+unsigned char * p4D1Enc128v32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start)
+{
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4D1Enc128v32(in, n, out, start);
+#else
+    return turbopfor::scalar::p4D1Enc128v32(in, n, out, start);
 #endif
 }
 
@@ -62,6 +76,15 @@ unsigned char * p4Enc256v32(uint32_t * in, unsigned n, unsigned char * out)
 #endif
 }
 
+unsigned char * p4D1Enc256v32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start)
+{
+#ifdef ENABLE_AVX2
+    return turbopfor::simd::p4D1Enc256v32(in, n, out, start);
+#else
+    return turbopfor::scalar::p4D1Enc256v32(in, n, out, start);
+#endif
+}
+
 const unsigned char * p4Dec256v32(const unsigned char * in, unsigned n, uint32_t * out)
 {
 #ifdef ENABLE_AVX2
@@ -86,6 +109,11 @@ unsigned char * p4Enc64(uint64_t * in, unsigned n, unsigned char * out)
     return turbopfor::scalar::p4Enc64(in, n, out);
 }
 
+unsigned char * p4D1Enc64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start)
+{
+    return turbopfor::scalar::p4D1Enc64(in, n, out, start);
+}
+
 const unsigned char * p4D1Dec64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
 {
     return turbopfor::scalar::p4D1Dec64(in, n, out, start);
@@ -103,6 +131,15 @@ unsigned char * p4Enc128v64(uint64_t * in, unsigned n, unsigned char * out)
     return turbopfor::simd::p4Enc128v64(in, n, out);
 #else
     return turbopfor::scalar::p4Enc128v64(in, n, out);
+#endif
+}
+
+unsigned char * p4D1Enc128v64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start)
+{
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4D1Enc128v64(in, n, out, start);
+#else
+    return turbopfor::scalar::p4D1Enc128v64(in, n, out, start);
 #endif
 }
 
@@ -133,6 +170,15 @@ unsigned char * p4Enc256v64(uint64_t * in, unsigned n, unsigned char * out)
     return turbopfor::simd::p4Enc256v64(in, n, out);
 #else
     return turbopfor::scalar::p4Enc256v64(in, n, out);
+#endif
+}
+
+unsigned char * p4D1Enc256v64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start)
+{
+#ifdef ENABLE_SSE42
+    return turbopfor::simd::p4D1Enc256v64(in, n, out, start);
+#else
+    return turbopfor::scalar::p4D1Enc256v64(in, n, out, start);
 #endif
 }
 

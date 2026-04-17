@@ -73,6 +73,7 @@ endif()
 set(TURBOPFOR_SOURCES
   src/dispatch.cpp
   src/scalar/p4enc32.cpp
+  src/scalar/p4d1enc32.cpp
   src/scalar/p4dec32.cpp
   src/scalar/p4d1dec32.cpp
   src/scalar/p4_scalar_bitpack32.cpp
@@ -83,19 +84,24 @@ set(TURBOPFOR_SOURCES
   src/scalar/p4_scalar_bitunpack64.cpp
   src/scalar/p4_scalar_bitunpackd1_64.cpp
   src/scalar/p4enc64.cpp
+  src/scalar/p4d1enc64.cpp
   src/scalar/p4d1dec64.cpp
   src/scalar/bitpack128v64_scalar.cpp
   src/scalar/p4enc128v64_scalar.cpp
+  src/scalar/p4d1enc128v64_scalar.cpp
   src/scalar/p4d1dec128v64_scalar.cpp
   src/scalar/bitpack256v64_scalar.cpp
   src/scalar/p4enc256v64_scalar.cpp
+  src/scalar/p4d1enc256v64_scalar.cpp
   src/scalar/p4d1dec256v64_scalar.cpp
   src/scalar/bitpack128v32_scalar.cpp
   src/scalar/p4enc128v32_scalar.cpp
+  src/scalar/p4d1enc128v32_scalar.cpp
   src/scalar/p4dec128v32_scalar.cpp
   src/scalar/p4d1dec128v32_scalar.cpp
   src/scalar/bitpack256v32_scalar.cpp
   src/scalar/p4enc256v32_scalar.cpp
+  src/scalar/p4d1enc256v32_scalar.cpp
   src/scalar/p4dec256v32_scalar.cpp
   src/scalar/p4d1dec256v32_scalar.cpp
 )
@@ -104,6 +110,7 @@ set(TURBOPFOR_SOURCES
 if(ENABLE_SSE42)
   list(APPEND TURBOPFOR_SOURCES
     src/simd/p4enc128v32.cpp
+    src/simd/p4d1enc128v32.cpp
     src/simd/p4dec128v32.cpp
     src/simd/p4d1dec128v32.cpp
     src/simd/p4_simd_internal.cpp
@@ -111,9 +118,11 @@ if(ENABLE_SSE42)
     src/simd/bitunpack128v32_simd.cpp
     src/simd/bitpack128v64_simd.cpp
     src/simd/p4enc128v64.cpp
+    src/simd/p4d1enc128v64.cpp
     src/simd/p4dec128v64.cpp
     src/simd/p4d1dec128v64.cpp
     src/simd/p4enc256v64.cpp
+    src/simd/p4d1enc256v64.cpp
     src/simd/p4dec256v64.cpp
     src/simd/p4d1dec256v64.cpp
   )
@@ -122,6 +131,7 @@ endif()
 if(ENABLE_AVX2)
   list(APPEND TURBOPFOR_SOURCES
     src/simd/p4enc256v32.cpp
+    src/simd/p4d1enc256v32.cpp
     src/simd/p4dec256v32.cpp
     src/simd/p4d1dec256v32.cpp
     src/simd/p4_simd_internal_256v.cpp
@@ -152,6 +162,7 @@ endif()
 if(ENABLE_SSE42)
   set_source_files_properties(
     src/simd/p4enc128v32.cpp
+    src/simd/p4d1enc128v32.cpp
     src/simd/p4dec128v32.cpp
     src/simd/p4d1dec128v32.cpp
     src/simd/p4_simd_internal.cpp
@@ -159,6 +170,7 @@ if(ENABLE_SSE42)
     src/simd/bitunpack128v32_simd.cpp
     src/simd/bitpack128v64_simd.cpp
     src/simd/p4enc128v64.cpp
+    src/simd/p4d1enc128v64.cpp
     src/simd/p4dec128v64.cpp
     src/simd/p4d1dec128v64.cpp
     PROPERTIES COMPILE_OPTIONS "-mssse3;-msse4.1;-msse4.2;-mpopcnt"
@@ -168,6 +180,7 @@ endif()
 if(ENABLE_AVX2)
   set_source_files_properties(
     src/simd/p4enc256v32.cpp
+    src/simd/p4d1enc256v32.cpp
     src/simd/p4dec256v32.cpp
     src/simd/p4d1dec256v32.cpp
     src/simd/p4_simd_internal_256v.cpp
@@ -222,7 +235,9 @@ add_executable(turbopfor_test
   tests/test_p4_32.cpp
   tests/test_p4_64.cpp
   tests/test_p4dec_32.cpp
+  tests/test_d1enc.cpp
   src/simd/p4enc128v32.cpp
+  src/simd/p4d1enc128v32.cpp
   src/simd/p4dec128v32.cpp
   src/simd/p4d1dec128v32.cpp
   src/simd/p4_simd_internal.cpp
@@ -230,6 +245,7 @@ add_executable(turbopfor_test
   src/simd/bitunpack128v32_simd.cpp
   src/simd/bitpack128v64_simd.cpp
   src/simd/p4enc128v64.cpp
+  src/simd/p4d1enc128v64.cpp
   src/simd/p4dec128v64.cpp
   src/simd/p4d1dec128v64.cpp
 )
@@ -247,9 +263,11 @@ set_source_files_properties(
   src/simd/bitunpack128v32_simd.cpp
   src/simd/bitpack128v64_simd.cpp
   src/simd/p4enc128v64.cpp
+  src/simd/p4d1enc128v64.cpp
   src/simd/p4dec128v64.cpp
   src/simd/p4d1dec128v64.cpp
   src/simd/p4enc256v64.cpp
+  src/simd/p4d1enc256v64.cpp
   src/simd/p4dec256v64.cpp
   src/simd/p4d1dec256v64.cpp
   PROPERTIES COMPILE_OPTIONS "-mssse3;-msse4.1;-msse4.2;-mpopcnt"

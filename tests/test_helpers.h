@@ -22,6 +22,10 @@ extern "C" unsigned char * p4d1dec128v32(unsigned char * in, unsigned n, uint32_
 extern "C" unsigned char * p4enc256v32(uint32_t * in, unsigned n, unsigned char * out);
 extern "C" unsigned char * p4dec256v32(unsigned char * in, unsigned n, uint32_t * out);
 extern "C" unsigned char * p4d1dec256v32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
+extern "C" unsigned char * p4d1enc32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
+extern "C" unsigned char * p4d1enc128v32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
+extern "C" unsigned char * p4d1enc256v32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
+extern "C" unsigned char * p4d1enc64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start);
 extern "C" unsigned char * bitpack32(unsigned * in, unsigned n, unsigned char * out, unsigned b);
 extern "C" unsigned char * bitunpack32(const unsigned char * in, unsigned n, uint32_t * out, unsigned b);
 extern "C" unsigned char * bitd1unpack32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start, unsigned b);

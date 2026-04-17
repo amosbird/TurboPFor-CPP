@@ -18,7 +18,7 @@ When making changes, always run both `turbopfor_test` (correctness) AND `ab_test
 
 All C reference functions have C++ equivalents. Both delta-1 decode (`p4D1Dec*`) and non-delta decode (`p4Dec*`) are provided for 32-bit and 64-bit.
 
-**Encode vs Decode convention:** Encoders (`p4Enc*`) do NOT apply delta — delta-1 is applied only at decode time. Use `p4Dec*` (non-delta) for data that was encoded without delta (e.g., position arrays). Use `p4D1Dec*` when the data represents delta-encoded sorted sequences.
+**Encode vs Decode convention:** Both delta-1 encode (`p4D1Enc*`) and non-delta encode (`p4Enc*`) are provided. Delta-1 encoders apply delta-1 pre-encoding (computing successive differences minus 1) before P4 compression. Use `p4D1Enc*`/`p4D1Dec*` for sorted sequences. Use `p4Enc*`/`p4Dec*` for non-delta data (e.g., position arrays).
 
 ## Build & Test Commands
 
@@ -46,6 +46,7 @@ cmake --build build -j
 ./build/ab_test --bitpack64        # low-level 64-bit bitpack
 ./build/ab_test --bitunpack64      # low-level 64-bit bitunpack
 ./build/ab_test --bitunpackd1_64   # low-level 64-bit bitunpack + delta1
+./build/ab_test --d1enc            # delta1 encode (p4d1enc32, n=1..127)
 
 # Benchmark tuning flags
 ./build/ab_test --simd128 --bw 8              # specific bit-width

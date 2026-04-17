@@ -705,4 +705,17 @@ const unsigned char * bitunpack256v64Scalar(const unsigned char * in, uint64_t *
 /// Apply delta1 decoding for 256-element 64-bit blocks
 void applyDelta1_256_64(uint64_t * out, unsigned n, uint64_t start);
 
+/// Delta-1 encode: out[i] = in[i] - prev - 1, where prev starts at `start`.
+/// Equivalent to TurboPFor's bitdienc32(..., mindelta=1). Used as the
+/// pre-processing step for p4D1Enc* (delta-1 encoded P4 compression).
+template <typename T>
+TURBOPFOR_ALWAYS_INLINE void deltaEnc1(const T * __restrict in, unsigned n, T * __restrict out, T start)
+{
+    for (unsigned i = 0; i < n; ++i)
+    {
+        out[i] = in[i] - start - 1;
+        start = in[i];
+    }
+}
+
 } // namespace turbopfor::scalar::detail

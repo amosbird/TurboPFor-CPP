@@ -11,6 +11,7 @@ namespace turbopfor::simd
 
 /// P4 encoding (128-element vertical bitpacking format)
 unsigned char * p4Enc128v32(uint32_t * in, unsigned n, unsigned char * out);
+unsigned char * p4D1Enc128v32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
 
 /// P4 decoding without delta1 (128-element vertical bitpacking format)
 const unsigned char * p4Dec128v32(const unsigned char * in, unsigned n, uint32_t * out);
@@ -20,6 +21,7 @@ const unsigned char * p4D1Dec128v32(const unsigned char * in, unsigned n, uint32
 
 /// P4 encoding (256-element vertical bitpacking format, AVX2)
 unsigned char * p4Enc256v32(uint32_t * in, unsigned n, unsigned char * out);
+unsigned char * p4D1Enc256v32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
 
 /// P4 decoding without delta1 (256-element vertical bitpacking format, AVX2)
 const unsigned char * p4Dec256v32(const unsigned char * in, unsigned n, uint32_t * out);
@@ -30,6 +32,7 @@ const unsigned char * p4D1Dec256v32(const unsigned char * in, unsigned n, uint32
 /// P4 encoding (128-element hybrid 64-bit format, SSE4.1)
 /// Uses 128v32 SIMD when b<=32, scalar bitpack64 when b>32
 unsigned char * p4Enc128v64(uint64_t * in, unsigned n, unsigned char * out);
+unsigned char * p4D1Enc128v64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start);
 
 /// P4 decoding without delta (128-element hybrid 64-bit format, SSE4.1)
 /// Matches TurboPFor C's p4dec128v64 — no delta prefix sum applied
@@ -40,6 +43,7 @@ const unsigned char * p4D1Dec128v64(const unsigned char * in, unsigned n, uint64
 
 /// P4 encoding (256-element hybrid 64-bit format, AVX2/scalar-hybrid)
 unsigned char * p4Enc256v64(uint64_t * in, unsigned n, unsigned char * out);
+unsigned char * p4D1Enc256v64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start);
 
 /// P4 decoding without delta (256-element hybrid 64-bit format)
 const unsigned char * p4Dec256v64(const unsigned char * in, unsigned n, uint64_t * out);

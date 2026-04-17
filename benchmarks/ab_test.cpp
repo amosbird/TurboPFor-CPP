@@ -30,6 +30,12 @@ extern "C" unsigned char * p4enc256v32(uint32_t * in, unsigned n, unsigned char 
 extern "C" unsigned char * p4dec256v32(unsigned char * in, unsigned n, uint32_t * out);
 extern "C" unsigned char * p4d1dec256v32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
 
+// D1 encode reference
+extern "C" unsigned char * p4d1enc32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
+extern "C" unsigned char * p4d1enc128v32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
+extern "C" unsigned char * p4d1enc256v32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
+extern "C" unsigned char * p4d1enc64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start);
+
 // 64-bit Reference C implementations
 extern "C" unsigned char * p4enc64(uint64_t * in, unsigned n, unsigned char * out);
 extern "C" unsigned char * p4d1dec64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
@@ -137,6 +143,7 @@ struct CommandLineArgs
     bool p4dec = false; ///< Test non-delta p4dec32 (n=1..127)
     bool simd128dec = false; ///< Test non-delta 128v SIMD decode (n=128)
     bool simd256dec = false; ///< Test non-delta 256v SIMD decode (n=256)
+    bool d1enc = false; ///< Test D1 encode (p4d1enc32/128v/256v)
 
     /// Validates argument consistency and prints errors if invalid
     bool validate() const
@@ -281,6 +288,10 @@ bool parseArguments(int argc, char ** argv, CommandLineArgs & args)
         else if (std::strcmp(argv[i], "--simd256dec") == 0)
         {
             args.simd256dec = true;
+        }
+        else if (std::strcmp(argv[i], "--d1enc") == 0)
+        {
+            args.d1enc = true;
         }
         else if (std::strcmp(argv[i], "--iters") == 0 && i + 1 < argc)
         {
@@ -1214,6 +1225,99 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
     return result;
 }
 
+/// Benchmarks D1 encode: p4d1enc* (delta-1 encode)
+/// Compares C reference vs C++ implementation for sorted input data
+BenchResult runD1EncBenchmark(const std::vector<uint32_t> & sorted_input, unsigned iters, bool simd128, bool simd256)
+{
+    const unsigned num_elements = static_cast<unsigned>(sorted_input.size());
+
+    auto get_aligned_ptr = [](std::vector<unsigned char> & buf) -> unsigned char *
+    {
+        unsigned char * ptr = buf.data();
+        size_t remainder = reinterpret_cast<uintptr_t>(ptr) % 32;
+        if (remainder)
+            ptr += (32 - remainder);
+        return ptr;
+    };
+
+    std::vector<uint32_t> input_copy = sorted_input;
+    input_copy.resize(num_elements + 64, 0u);
+    // Note: p4d1enc/p4D1Enc do NOT modify the input array (delta-1 output goes to a temp buffer).
+    // Input is copied once before timing to ensure alignment/padding.
+    std::copy(sorted_input.begin(), sorted_input.end(), input_copy.begin());
+
+    std::vector<unsigned char> ref_buf_vec(num_elements * 5 + 512, 0u);
+    unsigned char * ref_buf = get_aligned_ptr(ref_buf_vec);
+
+    std::vector<unsigned char> our_buf_vec(num_elements * 5 + 512, 0u);
+    unsigned char * our_buf = get_aligned_ptr(our_buf_vec);
+
+    uint32_t start = 0u;
+
+    for (unsigned i = 0; i < 1000; ++i)
+    {
+        if (simd128)
+            ::p4d1enc128v32(input_copy.data(), num_elements, ref_buf, start);
+        else if (simd256)
+            ::p4d1enc256v32(input_copy.data(), num_elements, ref_buf, start);
+        else
+            ::p4d1enc32(input_copy.data(), num_elements, ref_buf, start);
+
+        if (simd128)
+            turbopfor::p4D1Enc128v32(input_copy.data(), num_elements, our_buf, start);
+        else if (simd256)
+            turbopfor::p4D1Enc256v32(input_copy.data(), num_elements, our_buf, start);
+        else
+            turbopfor::p4D1Enc32(input_copy.data(), num_elements, our_buf, start);
+    }
+
+    double ref_enc_sec = 0.0;
+    double our_enc_sec = 0.0;
+    size_t ref_bytes = 0;
+    size_t our_bytes = 0;
+
+    const unsigned chunk = 10000;
+    for (unsigned base = 0; base < iters; base += chunk)
+    {
+        unsigned count = std::min(chunk, iters - base);
+
+        auto t0 = Clock::now();
+        for (unsigned i = 0; i < count; ++i)
+        {
+            unsigned char * end = nullptr;
+            if (simd128)
+                end = ::p4d1enc128v32(input_copy.data(), num_elements, ref_buf, start);
+            else if (simd256)
+                end = ::p4d1enc256v32(input_copy.data(), num_elements, ref_buf, start);
+            else
+                end = ::p4d1enc32(input_copy.data(), num_elements, ref_buf, start);
+            ref_bytes += static_cast<size_t>(end - ref_buf);
+        }
+        ref_enc_sec += secondsSince(t0);
+
+        t0 = Clock::now();
+        for (unsigned i = 0; i < count; ++i)
+        {
+            unsigned char * end = nullptr;
+            if (simd128)
+                end = turbopfor::p4D1Enc128v32(input_copy.data(), num_elements, our_buf, start);
+            else if (simd256)
+                end = turbopfor::p4D1Enc256v32(input_copy.data(), num_elements, our_buf, start);
+            else
+                end = turbopfor::p4D1Enc32(input_copy.data(), num_elements, our_buf, start);
+            our_bytes += static_cast<size_t>(end - our_buf);
+        }
+        our_enc_sec += secondsSince(t0);
+    }
+
+    BenchResult result;
+    result.ref_enc_mb_s = ref_bytes / (1024.0 * 1024.0) / ref_enc_sec;
+    result.our_enc_mb_s = our_bytes / (1024.0 * 1024.0) / our_enc_sec;
+    result.ref_dec_mb_s = 0.0;
+    result.our_dec_mb_s = 0.0;
+    return result;
+}
+
 } // namespace
 
 // =============================================================================
@@ -1243,7 +1347,7 @@ int main(int argc, char ** argv)
 
     // Determine if this is a bitpack-only style test (single throughput column)
     bool is_bitop_only = args.bitpack_only || args.bitunpack_only || args.bitunpackd1_only || args.bitpack64_only || args.bitunpack64_only
-        || args.bitunpackd1_64_only;
+        || args.bitunpackd1_64_only || args.d1enc;
 
     // Configure SIMD/128v mode if requested
     if (args.simd128 || args.simd256 || args.simd128v64 || args.simd128v64d1 || args.simd256v64d1 || args.simd128dec || args.simd256dec)
@@ -1300,6 +1404,8 @@ int main(int argc, char ** argv)
             std::printf("=== TurboPFor A/B Performance Test - p4enc64/p4d1dec64 ===\n");
         else if (args.p4dec)
             std::printf("=== TurboPFor A/B Performance Test - p4enc32/p4dec32 (no delta) ===\n");
+        else if (args.d1enc)
+            std::printf("=== TurboPFor A/B Performance Test - p4d1enc32 (delta1 encode) ===\n");
         else if (args.bitpack_only)
             std::printf("=== TurboPFor A/B Performance Test - bitpack32 ===\n");
         else if (args.bitunpackd1_only)
@@ -1553,9 +1659,30 @@ int main(int argc, char ** argv)
                         total_bitop_diff += diff;
                         std::printf(" %3u |   %2u     | %6.1f   %6.1f   %+6.1f%%\n", n, bw, best.ref_mb_s, best.our_mb_s, diff);
                     }
+                    else if (args.d1enc)
+                    {
+                        std::sort(input.begin(), input.end());
+                        BenchResult best{};
+                        for (unsigned r = 0; r < args.runs; ++r)
+                        {
+                            auto result = runD1EncBenchmark(input, args.iters, args.simd128, args.simd256);
+                            if (r == 0 || result.ref_enc_mb_s > best.ref_enc_mb_s)
+                                best.ref_enc_mb_s = result.ref_enc_mb_s;
+                            if (r == 0 || result.our_enc_mb_s > best.our_enc_mb_s)
+                                best.our_enc_mb_s = result.our_enc_mb_s;
+                        }
+                        double enc_diff = (best.our_enc_mb_s / best.ref_enc_mb_s - 1.0) * 100.0;
+                        total_bitop_diff += enc_diff;
+                        std::printf(
+                            " %3u |   %2u     | %6.1f   %6.1f   %+6.1f%%\n",
+                            n,
+                            bw,
+                            best.ref_enc_mb_s,
+                            best.our_enc_mb_s,
+                            enc_diff);
+                    }
                     else
                     {
-                        // P4 32-bit benchmark (delta1 or non-delta)
                         bool use_nodelta = args.p4dec || args.simd128dec || args.simd256dec;
                         BenchResult best{};
                         for (unsigned r = 0; r < args.runs; ++r)
