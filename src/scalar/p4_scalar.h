@@ -22,6 +22,7 @@ const unsigned char * p4D1Dec256v32(const unsigned char * in, unsigned n, uint32
 
 unsigned char * p4Enc64(uint64_t * in, unsigned n, unsigned char * out);
 unsigned char * p4D1Enc64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start);
+const unsigned char * p4Dec64(const unsigned char * in, unsigned n, uint64_t * out);
 const unsigned char * p4D1Dec64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
 
 unsigned char * p4Enc128v64(uint64_t * in, unsigned n, unsigned char * out);

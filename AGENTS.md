@@ -47,6 +47,7 @@ cmake --build build -j
 ./build/ab_test --bitunpack64      # low-level 64-bit bitunpack
 ./build/ab_test --bitunpackd1_64   # low-level 64-bit bitunpack + delta1
 ./build/ab_test --d1enc            # delta1 encode (p4d1enc32, n=1..127)
+./build/ab_test --p4dec64          # 64-bit P4 non-delta decode (p4dec64, n=1..127)
 
 # Benchmark tuning flags
 ./build/ab_test --simd128 --bw 8              # specific bit-width

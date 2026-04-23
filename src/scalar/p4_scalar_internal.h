@@ -420,9 +420,9 @@ constexpr unsigned word_count_for(unsigned b, unsigned n)
     return (n * b + 63u) / 64u;
 }
 
-constexpr unsigned max_words_for_gcd(unsigned g)
+constexpr unsigned max_words_for_block()
 {
-    return (g <= 2u) ? 12u : 16u;
+    return 32u;
 }
 
 constexpr unsigned choose_block_size(unsigned b, unsigned n)
@@ -431,7 +431,7 @@ constexpr unsigned choose_block_size(unsigned b, unsigned n)
         return 0u;
     const unsigned g = gcd_u32(64u, b);
     unsigned period = 64u / g;
-    unsigned max_words = max_words_for_gcd(g);
+    unsigned max_words = max_words_for_block();
 
     unsigned k = period;
     while (k > 1u && k > n)

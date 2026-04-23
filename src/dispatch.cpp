@@ -114,6 +114,11 @@ unsigned char * p4D1Enc64(uint64_t * in, unsigned n, unsigned char * out, uint64
     return turbopfor::scalar::p4D1Enc64(in, n, out, start);
 }
 
+const unsigned char * p4Dec64(const unsigned char * in, unsigned n, uint64_t * out)
+{
+    return turbopfor::scalar::p4Dec64(in, n, out);
+}
+
 const unsigned char * p4D1Dec64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start)
 {
     return turbopfor::scalar::p4D1Dec64(in, n, out, start);

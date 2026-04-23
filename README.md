@@ -20,14 +20,45 @@ The library features a novel **"Fused Unpack + Patch + Delta"** decoding pipelin
 
 ## Performance
 
-TurboPFor++ has been benchmarked against standard reference implementations. The optimized fused pipeline delivers consistent gains:
+TurboPFor++ outperforms the C reference on **every function**, across all bit-widths (1–64) and exception rates (0–25%). Below are Grand Average throughput gains measured by the A/B benchmark suite (`ab_test`).
 
-| Variant | Avg Decode Speedup | Max Speedup (High Exceptions) |
-|---------|-------------------|-------------------------------|
-| **128v (SSE4.2)** | **+12%** | **+25%** |
-| **256v (AVX2)**   | **+26%** | **+50%** |
+### P4 Encode / Decode
 
-*Benchmarks run on Intel/AMD modern architectures testing various bit-widths and exception probabilities.*
+| API | Encode | Decode |
+|-----|--------|--------|
+| **32-bit scalar (n=1..127)** | | |
+| `p4Enc32` / `p4Dec32` | +115% | +101% |
+| `p4D1Enc32` / `p4D1Dec32` | +80% | +86% |
+| **32-bit SSE4.2 (n=128)** | | |
+| `p4Enc128v32` / `p4Dec128v32` | +77% | +6% |
+| `p4D1Enc128v32` / `p4D1Dec128v32` | +76% | +6% |
+| **32-bit AVX2 (n=256)** | | |
+| `p4Enc256v32` / `p4Dec256v32` | +115% | +23% |
+| `p4D1Enc256v32` / `p4D1Dec256v32` | +117% | +25% |
+| **64-bit scalar (n=1..127)** | | |
+| `p4Enc64` / `p4Dec64` | +52% | +72% |
+| `p4D1Enc64` / `p4D1Dec64` | +50% | +48% |
+| **64-bit SSE hybrid (n=128)** | | |
+| `p4Enc128v64` / `p4Dec128v64` | +29% | +14% |
+| `p4D1Enc128v64` / `p4D1Dec128v64` | +30% | +18% |
+| **64-bit SSE hybrid (n=256)** | | |
+| `p4Enc256v64` / `p4Dec256v64` | +28% | — ¹ |
+| `p4D1Enc256v64` / `p4D1Dec256v64` | +28% | +17% |
+
+¹ `p4Dec256v64` internally wraps 2×`p4Dec128v64`; expected gain matches the 128v64 non-delta row.
+
+### Low-Level Bitpack / Bitunpack
+
+| API | Throughput |
+|-----|-----------|
+| `bitpack32` | +115% |
+| `bitunpack32` | +121% |
+| `bitunpack32` + delta1 | +105% |
+| `bitpack64` | +119% |
+| `bitunpack64` | +79% |
+| `bitunpack64` + delta1 | +57% |
+
+*All numbers are Grand Average across bit-widths 1–32 (32-bit) or 1–64 (64-bit), element counts n=1–127 (scalar) or n=128/256 (SIMD), exception rates 0/5/10/25%, best of multiple runs.*
 
 ## Requirements
 
@@ -97,23 +128,53 @@ int main() {
 
 ## API Reference
 
-The library exposes a straightforward API in the `turbopfor` namespace:
+The full API is in `include/turbopfor.h` under the `turbopfor` namespace.
+
+### 32-bit
 
 ```cpp
-namespace turbopfor {
-    // 256-element blocks (AVX2)
-    unsigned char * p4Enc256v32(uint32_t * in, unsigned n, unsigned char * out);
-    unsigned char * p4D1Dec256v32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
+// Scalar (n = 1..127)
+unsigned char * p4Enc32(uint32_t * in, unsigned n, unsigned char * out);
+unsigned char * p4D1Enc32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
+const unsigned char * p4Dec32(const unsigned char * in, unsigned n, uint32_t * out);
+const unsigned char * p4D1Dec32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
 
-    // 128-element blocks (SSE4.2)
-    unsigned char * p4Enc128v32(uint32_t * in, unsigned n, unsigned char * out);
-    unsigned char * p4D1Dec128v32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
+// SSE4.2, 128-element blocks
+unsigned char * p4Enc128v32(uint32_t * in, unsigned n, unsigned char * out);
+unsigned char * p4D1Enc128v32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
+const unsigned char * p4Dec128v32(const unsigned char * in, unsigned n, uint32_t * out);
+const unsigned char * p4D1Dec128v32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
 
-    // n-element blocks (Scalar)
-    unsigned char * p4Enc32(uint32_t * in, unsigned n, unsigned char * out);
-    unsigned char * p4D1Dec32(unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
-}
+// AVX2, 256-element blocks
+unsigned char * p4Enc256v32(uint32_t * in, unsigned n, unsigned char * out);
+unsigned char * p4D1Enc256v32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start);
+const unsigned char * p4Dec256v32(const unsigned char * in, unsigned n, uint32_t * out);
+const unsigned char * p4D1Dec256v32(const unsigned char * in, unsigned n, uint32_t * out, uint32_t start);
 ```
+
+### 64-bit
+
+```cpp
+// Scalar (n = 1..127)
+unsigned char * p4Enc64(uint64_t * in, unsigned n, unsigned char * out);
+unsigned char * p4D1Enc64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start);
+const unsigned char * p4Dec64(const unsigned char * in, unsigned n, uint64_t * out);
+const unsigned char * p4D1Dec64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
+
+// SSE hybrid, 128-element blocks (SIMD for b<=32, scalar for b>32)
+unsigned char * p4Enc128v64(uint64_t * in, unsigned n, unsigned char * out);
+unsigned char * p4D1Enc128v64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start);
+const unsigned char * p4Dec128v64(const unsigned char * in, unsigned n, uint64_t * out);
+const unsigned char * p4D1Dec128v64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
+
+// SSE hybrid, 256-element blocks
+unsigned char * p4Enc256v64(uint64_t * in, unsigned n, unsigned char * out);
+unsigned char * p4D1Enc256v64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start);
+const unsigned char * p4Dec256v64(const unsigned char * in, unsigned n, uint64_t * out);
+const unsigned char * p4D1Dec256v64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
+```
+
+**Naming convention:** `p4` = P4 algorithm, `D1` = delta-1, `Enc`/`Dec` = encode/decode, `128v`/`256v` = SIMD block size, `32`/`64` = integer width. Use `D1` variants for sorted sequences (posting lists); use non-`D1` variants for unsorted data (position arrays).
 
 ## Project Structure
 

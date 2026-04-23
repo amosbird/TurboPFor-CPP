@@ -47,6 +47,9 @@ unsigned char * p4Enc64(uint64_t * in, unsigned n, unsigned char * out);
 /// Encode n 64-bit integers using P4 with delta1 pre-encoding
 unsigned char * p4D1Enc64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start);
 
+/// Decode n 64-bit integers using P4 (PFor) decompression (no delta)
+const unsigned char * p4Dec64(const unsigned char * in, unsigned n, uint64_t * out);
+
 /// Decode n 64-bit integers using P4 (PFor) decompression with delta1
 const unsigned char * p4D1Dec64(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
 

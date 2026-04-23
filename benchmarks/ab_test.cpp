@@ -38,6 +38,7 @@ extern "C" unsigned char * p4d1enc64(uint64_t * in, unsigned n, unsigned char * 
 
 // 64-bit Reference C implementations
 extern "C" unsigned char * p4enc64(uint64_t * in, unsigned n, unsigned char * out);
+extern "C" unsigned char * p4dec64(unsigned char * in, unsigned n, uint64_t * out);
 extern "C" unsigned char * p4d1dec64(unsigned char * in, unsigned n, uint64_t * out, uint64_t start);
 extern "C" unsigned char * bitpack64(uint64_t * in, unsigned n, unsigned char * out, unsigned b);
 extern "C" unsigned char * bitunpack64(const unsigned char * in, unsigned n, uint64_t * out, unsigned b);
@@ -141,6 +142,7 @@ struct CommandLineArgs
     bool simd128v64d1 = false; ///< Test 128v64 variant (delta1 decode)
     bool simd256v64d1 = false; ///< Test 256v64 variant (delta1 decode)
     bool p4dec = false; ///< Test non-delta p4dec32 (n=1..127)
+    bool p4dec64 = false; ///< Test non-delta p4dec64 (n=1..127)
     bool simd128dec = false; ///< Test non-delta 128v SIMD decode (n=128)
     bool simd256dec = false; ///< Test non-delta 256v SIMD decode (n=256)
     bool d1enc = false; ///< Test D1 encode (p4d1enc32/128v/256v)
@@ -159,7 +161,7 @@ struct CommandLineArgs
         }
 
         // Check 64-bit mode exclusivity with 32-bit bitpack tests
-        if ((p64 || bitpack64_only || bitunpack64_only || bitunpackd1_64_only || simd128v64 || simd128v64d1 || simd256v64d1)
+        if ((p64 || p4dec64 || bitpack64_only || bitunpack64_only || bitunpackd1_64_only || simd128v64 || simd128v64d1 || simd256v64d1)
             && (bitpack_only || bitunpack_only || bitunpackd1_only || simd128 || simd256 || p4dec || simd128dec || simd256dec))
         {
             std::fprintf(stderr, "Error: 64-bit tests cannot be combined with 32-bit tests\n");
@@ -280,6 +282,11 @@ bool parseArguments(int argc, char ** argv, CommandLineArgs & args)
         else if (std::strcmp(argv[i], "--p4dec") == 0)
         {
             args.p4dec = true;
+        }
+        else if (std::strcmp(argv[i], "--p4dec64") == 0)
+        {
+            args.p4dec64 = true;
+            args.p64 = true;
         }
         else if (std::strcmp(argv[i], "--simd128dec") == 0)
         {
@@ -1042,7 +1049,7 @@ BitunpackD1Result runBitunpackD1_64Benchmark(const std::vector<uint64_t> & input
 }
 
 /// Benchmarks 64-bit p4enc/p4d1dec (scalar, 128v64, or 256v64)
-BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, bool simd128v64, bool simd128v64d1 = false, bool simd256v64d1 = false)
+BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, bool simd128v64, bool simd128v64d1 = false, bool simd256v64d1 = false, bool p4dec64 = false)
 {
     const unsigned num_elements = static_cast<unsigned>(input.size());
 
@@ -1120,8 +1127,16 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
         {
             ::p4enc64(input_copy.data(), num_elements, ref_buf);
             turbopfor::scalar::p4Enc64(input_copy.data(), num_elements, our_buf);
-            ::p4d1dec64(ref_buf, num_elements, out, 0ull);
-            turbopfor::scalar::p4D1Dec64(our_buf, num_elements, out, 0ull);
+            if (p4dec64)
+            {
+                ::p4dec64(ref_buf, num_elements, out);
+                turbopfor::scalar::p4Dec64(our_buf, num_elements, out);
+            }
+            else
+            {
+                ::p4d1dec64(ref_buf, num_elements, out, 0ull);
+                turbopfor::scalar::p4D1Dec64(our_buf, num_elements, out, 0ull);
+            }
         }
     }
 
@@ -1196,6 +1211,8 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
             }
             else if (simd128v64)
                 ::p4dec128v64(ref_buf, num_elements, out);
+            else if (p4dec64)
+                ::p4dec64(ref_buf, num_elements, out);
             else
                 ::p4d1dec64(ref_buf, num_elements, out, 0ull);
         }
@@ -1210,6 +1227,8 @@ BenchResult runBenchmark64(const std::vector<uint64_t> & input, unsigned iters, 
                 turbopfor::simd::p4D1Dec128v64(our_buf, num_elements, out, 0ull);
             else if (simd128v64)
                 turbopfor::simd::p4Dec128v64(our_buf, num_elements, out);
+            else if (p4dec64)
+                turbopfor::scalar::p4Dec64(our_buf, num_elements, out);
             else
                 turbopfor::scalar::p4D1Dec64(our_buf, num_elements, out, 0ull);
         }
@@ -1557,7 +1576,7 @@ int main(int argc, char ** argv)
                         BenchResult best{};
                         for (unsigned r = 0; r < args.runs; ++r)
                         {
-                            auto result = runBenchmark64(input, args.iters, args.simd128v64, args.simd128v64d1, args.simd256v64d1);
+                            auto result = runBenchmark64(input, args.iters, args.simd128v64, args.simd128v64d1, args.simd256v64d1, args.p4dec64);
                             if (r == 0 || result.ref_enc_mb_s > best.ref_enc_mb_s)
                                 best.ref_enc_mb_s = result.ref_enc_mb_s;
                             if (r == 0 || result.our_enc_mb_s > best.our_enc_mb_s)

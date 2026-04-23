@@ -86,6 +86,7 @@ set(TURBOPFOR_SOURCES
   src/scalar/p4enc64.cpp
   src/scalar/p4d1enc64.cpp
   src/scalar/p4d1dec64.cpp
+  src/scalar/p4dec64.cpp
   src/scalar/bitpack128v64_scalar.cpp
   src/scalar/p4enc128v64_scalar.cpp
   src/scalar/p4d1enc128v64_scalar.cpp
@@ -235,6 +236,7 @@ add_executable(turbopfor_test
   tests/test_p4_32.cpp
   tests/test_p4_64.cpp
   tests/test_p4dec_32.cpp
+  tests/test_p4dec_64.cpp
   tests/test_d1enc.cpp
   src/simd/p4enc128v32.cpp
   src/simd/p4d1enc128v32.cpp
