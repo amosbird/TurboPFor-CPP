@@ -413,23 +413,10 @@ struct Bitunpack64ScalarImpl
         if (n == 0u)
             return ret;
 
-        if constexpr (uses_interleaved_path<B>())
-        {
-            // Decode a full 32-element block into a temp buffer and copy
-            // only the needed elements. This avoids instantiating 31 tail
-            // templates per bitwidth (mirrors the C reference's BU macro).
-            alignas(64) uint64_t tmp[32];
-            unpack64_n_b<Delta1, B, 32>(in, tmp, start);
-            std::memcpy(out, tmp, n * sizeof(uint64_t));
-            return ret;
-        }
+        if constexpr (Delta1)
+            return unpack64_tail<true, B>(in, n, out, start);
         else
-        {
-            if constexpr (Delta1)
-                return unpack64_tail<true, B>(in, n, out, start);
-            else
-                return unpack64_tail<false, B>(in, n, out, 0ull);
-        }
+            return unpack64_tail<false, B>(in, n, out, 0ull);
     }
 
     static const unsigned char * dispatch(const unsigned char * in, unsigned n, uint64_t * out, uint64_t start, unsigned b)
