@@ -284,7 +284,26 @@ bitunpack_avx2_entry(const unsigned char * in, uint32_t * out, __m256i & sv, con
                 }
                 return in;
             }
-            // Fallthrough if Patching B=0
+            else
+            {
+                // B=0 + Delta + Patching: zero base + patched exceptions + delta1.
+                // No packed input bytes are consumed; ip is left unchanged.
+                // sv holds the running start as a broadcast scalar (low lane).
+                uint32_t start = static_cast<uint32_t>(_mm256_cvtsi256_si32(sv));
+                for (unsigned g = 0; g < MaxG; ++g)
+                {
+                    uint64_t w = bitmap[g / 8];
+                    unsigned m = static_cast<unsigned>((w >> ((g % 8) * 8)) & 0xFFu);
+                    for (unsigned i = 0; i < 8; ++i)
+                    {
+                        uint32_t patch = (m >> i) & 1u ? *pex++ : 0u;
+                        start += 1u + patch;
+                        out[g * 8 + i] = start;
+                    }
+                }
+                sv = _mm256_set1_epi32(static_cast<int>(start));
+                return in;
+            }
         }
         else
         {
@@ -294,6 +313,21 @@ bitunpack_avx2_entry(const unsigned char * in, uint32_t * out, __m256i & sv, con
                 for (unsigned i = 0; i < MaxG; ++i)
                 {
                     _mm256_storeu_si256(reinterpret_cast<__m256i *>(out + i * 8), zero);
+                }
+                return in;
+            }
+            else
+            {
+                // B=0 + !Delta + Patching: zero base + patched exceptions.
+                // No packed input bytes are consumed.
+                for (unsigned g = 0; g < MaxG; ++g)
+                {
+                    uint64_t w = bitmap[g / 8];
+                    unsigned m = static_cast<unsigned>((w >> ((g % 8) * 8)) & 0xFFu);
+                    for (unsigned i = 0; i < 8; ++i)
+                    {
+                        out[g * 8 + i] = (m >> i) & 1u ? *pex++ : 0u;
+                    }
                 }
                 return in;
             }

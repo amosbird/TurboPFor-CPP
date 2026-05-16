@@ -273,6 +273,26 @@ bitunpack_sse_entry(const unsigned char * in, uint32_t * out, __m128i & sv, cons
                 }
                 return in;
             }
+            else
+            {
+                // B=0 + Delta + Patching: zero base + patched exceptions + delta1.
+                // No packed input bytes are consumed; ip is left unchanged.
+                // sv holds the running start broadcast across all lanes.
+                uint32_t start = static_cast<uint32_t>(_mm_cvtsi128_si32(sv));
+                for (unsigned g = 0; g < MaxG; ++g)
+                {
+                    uint64_t w = (g < 16) ? bitmap[0] : bitmap[1];
+                    unsigned m = static_cast<unsigned>((w >> ((g % 16) * 4)) & 0xFu);
+                    for (unsigned i = 0; i < 4; ++i)
+                    {
+                        uint32_t patch = (m >> i) & 1u ? *pex++ : 0u;
+                        start += 1u + patch;
+                        out[g * 4 + i] = start;
+                    }
+                }
+                sv = _mm_set1_epi32(static_cast<int>(start));
+                return in;
+            }
         }
         else
         {
@@ -282,6 +302,21 @@ bitunpack_sse_entry(const unsigned char * in, uint32_t * out, __m128i & sv, cons
                 for (unsigned i = 0; i < MaxG; ++i)
                 {
                     _mm_storeu_si128(reinterpret_cast<__m128i *>(out + i * 4), zero);
+                }
+                return in;
+            }
+            else
+            {
+                // B=0 + !Delta + Patching: zero base + patched exceptions.
+                // No packed input bytes are consumed.
+                for (unsigned g = 0; g < MaxG; ++g)
+                {
+                    uint64_t w = (g < 16) ? bitmap[0] : bitmap[1];
+                    unsigned m = static_cast<unsigned>((w >> ((g % 16) * 4)) & 0xFu);
+                    for (unsigned i = 0; i < 4; ++i)
+                    {
+                        out[g * 4 + i] = (m >> i) & 1u ? *pex++ : 0u;
+                    }
                 }
                 return in;
             }

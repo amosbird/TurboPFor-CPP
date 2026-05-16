@@ -238,6 +238,7 @@ add_executable(turbopfor_test
   tests/test_p4dec_32.cpp
   tests/test_p4dec_64.cpp
   tests/test_d1enc.cpp
+  tests/test_overadvance.cpp
   src/simd/p4enc128v32.cpp
   src/simd/p4d1enc128v32.cpp
   src/simd/p4dec128v32.cpp
