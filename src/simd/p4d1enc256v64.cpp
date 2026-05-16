@@ -4,7 +4,7 @@
 namespace turbopfor::simd
 {
 
-unsigned char * p4D1Enc256v64(uint64_t * in, unsigned n, unsigned char * out, uint64_t start)
+unsigned char * p4D1Enc256v64(const uint64_t * in, unsigned n, unsigned char * out, uint64_t start)
 {
     if (n == 0u)
         return out;

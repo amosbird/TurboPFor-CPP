@@ -1710,7 +1710,7 @@ ALWAYS_INLINE void bitpack_ip32_period_body(
 
 // Entry point for fused IP32 bitpack with periodic-unroll
 template <unsigned B>
-ALWAYS_INLINE void bitpack128v64_fused(const uint64_t * in, unsigned char * out)
+ALWAYS_INLINE void bitpack128v64_fused(const const uint64_t * in, unsigned char * out)
 {
     if constexpr (B == 0)
         return; // No output for 0-bit packing

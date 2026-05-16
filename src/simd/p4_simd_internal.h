@@ -57,7 +57,7 @@ using scalar::detail::storeU32;
 using scalar::detail::storeU64Fast;
 
 /// SSE4.1 128v vertical bitpacking (4-lane interleaved, 128 elements)
-unsigned char * bitpack128v32(const uint32_t * in, unsigned char * out, unsigned b);
+unsigned char * bitpack128v32(const const uint32_t * in, unsigned char * out, unsigned b);
 const unsigned char * bitunpack128v32(const unsigned char * in, uint32_t * out, unsigned b);
 
 /// SSE4.1 128v vertical bitunpacking with delta1 decode (fused operation)
@@ -74,7 +74,7 @@ bitunpack128v32_ex(const unsigned char * in, uint32_t * out, unsigned b, const u
 /// SSE4.1 128v64 hybrid bitpacking (128 x 64-bit values)
 /// b <= 32: IP32 shuffle + bitpack128v32 SIMD
 /// b > 32: scalar bitpack64
-unsigned char * bitpack128v64(const uint64_t * in, unsigned char * out, unsigned b);
+unsigned char * bitpack128v64(const const uint64_t * in, unsigned char * out, unsigned b);
 const unsigned char * bitunpack128v64(const unsigned char * in, uint64_t * out, unsigned b);
 
 /// Fused 128v64 unpack + delta1 decode (saves one full pass over output)
@@ -86,11 +86,11 @@ const unsigned char *
 bitd1unpack128v64_ex(const unsigned char * in, uint64_t * out, unsigned b, uint64_t start, const uint64_t * bitmap, const uint32_t *& pex);
 
 /// Variable-byte encoding/decoding (reuse from scalar - not SIMD critical path)
-unsigned char * vbEnc32(const uint32_t * in, unsigned n, unsigned char * out);
+unsigned char * vbEnc32(const const uint32_t * in, unsigned n, unsigned char * out);
 const unsigned char * vbDec32(const unsigned char * in, unsigned n, uint32_t * out);
 
 /// P4 bit width selection
-unsigned p4Bits32(const uint32_t * in, unsigned n, unsigned * pbx);
+unsigned p4Bits32(const const uint32_t * in, unsigned n, unsigned * pbx);
 
 /// Write P4 header (32-bit)
 void writeHeader(unsigned char *& out, unsigned b, unsigned bx);

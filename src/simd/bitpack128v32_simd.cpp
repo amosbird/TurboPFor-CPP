@@ -5,7 +5,7 @@ namespace turbopfor::simd::detail
 
 // Optimized general implementation with 4x unrolling
 // Minimizes branch overhead and improves instruction-level parallelism
-static unsigned char * bitpack128v32_general(const uint32_t * in, unsigned char * out, unsigned b)
+static unsigned char * bitpack128v32_general(const const uint32_t * in, unsigned char * out, unsigned b)
 {
     const __m128i mv = _mm_set1_epi32(static_cast<int>((1u << b) - 1u));
     __m128i * op = reinterpret_cast<__m128i *>(out);
@@ -74,7 +74,7 @@ static unsigned char * bitpack128v32_general(const uint32_t * in, unsigned char 
 }
 
 // Specialized implementation for b=1 - fully unrolled
-static unsigned char * bitpack128v32_b1(const uint32_t * in, unsigned char * out)
+static unsigned char * bitpack128v32_b1(const const uint32_t * in, unsigned char * out)
 {
     __m128i * op = reinterpret_cast<__m128i *>(out);
     const __m128i mv = _mm_set1_epi32(1);
@@ -127,7 +127,7 @@ static unsigned char * bitpack128v32_b1(const uint32_t * in, unsigned char * out
 }
 
 // Specialized implementation for b=2 - fully unrolled
-static unsigned char * bitpack128v32_b2(const uint32_t * in, unsigned char * out)
+static unsigned char * bitpack128v32_b2(const const uint32_t * in, unsigned char * out)
 {
     __m128i * op = reinterpret_cast<__m128i *>(out);
     const __m128i mv = _mm_set1_epi32(3);
@@ -187,7 +187,7 @@ static unsigned char * bitpack128v32_b2(const uint32_t * in, unsigned char * out
 }
 
 // Specialized implementation for b=4 - fully unrolled
-static unsigned char * bitpack128v32_b4(const uint32_t * in, unsigned char * out)
+static unsigned char * bitpack128v32_b4(const const uint32_t * in, unsigned char * out)
 {
     __m128i * op = reinterpret_cast<__m128i *>(out);
     const __m128i mv = _mm_set1_epi32(0xF);
@@ -250,7 +250,7 @@ static unsigned char * bitpack128v32_b4(const uint32_t * in, unsigned char * out
 }
 
 // Specialized implementation for b=8 - fully unrolled
-static unsigned char * bitpack128v32_b8(const uint32_t * in, unsigned char * out)
+static unsigned char * bitpack128v32_b8(const const uint32_t * in, unsigned char * out)
 {
     __m128i * op = reinterpret_cast<__m128i *>(out);
     const __m128i mv = _mm_set1_epi32(0xFF);
@@ -291,7 +291,7 @@ static unsigned char * bitpack128v32_b8(const uint32_t * in, unsigned char * out
 }
 
 // Specialized implementation for b=16 - fully unrolled
-static unsigned char * bitpack128v32_b16(const uint32_t * in, unsigned char * out)
+static unsigned char * bitpack128v32_b16(const const uint32_t * in, unsigned char * out)
 {
     __m128i * op = reinterpret_cast<__m128i *>(out);
     const __m128i mv = _mm_set1_epi32(0xFFFF);
@@ -310,7 +310,7 @@ static unsigned char * bitpack128v32_b16(const uint32_t * in, unsigned char * ou
     return out + 256;
 }
 
-unsigned char * bitpack128v32(const uint32_t * in, unsigned char * out, unsigned b)
+unsigned char * bitpack128v32(const const uint32_t * in, unsigned char * out, unsigned b)
 {
     if (b == 0u)
         return out;

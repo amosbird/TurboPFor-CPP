@@ -160,7 +160,7 @@ const unsigned char * vbGet32(const unsigned char * in, uint32_t & x)
 // - Uncompressed: [0xFF escape marker][raw uint32_t values...]
 //
 // Returns: Pointer to end of encoded data
-unsigned char * vbEnc32(const uint32_t * in, unsigned n, unsigned char * out)
+unsigned char * vbEnc32(const const uint32_t * in, unsigned n, unsigned char * out)
 {
     // Encode all values using variable-byte encoding
     // Note: vbPut32 takes 'unsigned char * &', so op advances automatically
@@ -267,7 +267,7 @@ const unsigned char * vbDec32(const unsigned char * in, unsigned n, uint32_t * o
 // Returns: Optimal base bit width 'b' (0-32)
 //
 // Note: Uses negative array indexing trick for vbyte accumulators (vb array centered at offset)
-unsigned p4Bits32(const uint32_t * in, unsigned n, unsigned * out_exception_bits)
+unsigned p4Bits32(const const uint32_t * in, unsigned n, unsigned * out_exception_bits)
 {
     // Phase 1: Fast scan for special cases (zeros, constant)
     uint32_t bitwise_or = 0;
@@ -477,7 +477,7 @@ void vbPut64(unsigned char *& out, uint64_t x)
 
 } // namespace
 
-unsigned char * vbEnc64(const uint64_t * in, unsigned n, unsigned char * out)
+unsigned char * vbEnc64(const const uint64_t * in, unsigned n, unsigned char * out)
 {
     unsigned char * op = out;
     for (unsigned i = 0; i < n; ++i)
@@ -535,7 +535,7 @@ const unsigned char * vbDec64(const unsigned char * __restrict in, unsigned n, u
 // - 1-63: Bitwise patching with patch_bits = exception_bits
 // - 65 (64+1): Variable-byte exception encoding
 // - 66 (64+2): Constant block optimization
-unsigned p4Bits64(const uint64_t * in, unsigned n, unsigned * out_exception_bits)
+unsigned p4Bits64(const const uint64_t * in, unsigned n, unsigned * out_exception_bits)
 {
     // Phase 1: Fast scan for special cases
     uint64_t bitwise_or = 0;

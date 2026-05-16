@@ -16,7 +16,7 @@ using scalar::detail::pad8;
 /// Returns base bit width and sets *pbx to exception strategy
 ///
 /// Performance critical: this function is called for every 128-element block
-inline unsigned p4Bits128(const uint32_t * in, unsigned * pbx)
+inline unsigned p4Bits128(const const uint32_t * in, unsigned * pbx)
 {
     constexpr unsigned n = 128;
 

@@ -122,7 +122,7 @@ static const bitpack256v32_func bitpack_table_256v[33] = {
     bitpack_entry<32>
 };
 
-unsigned char * bitpack256v32(const uint32_t * in, unsigned char * out, unsigned b)
+unsigned char * bitpack256v32(const const uint32_t * in, unsigned char * out, unsigned b)
 {
     return bitpack_table_256v[b](in, out);
 }

@@ -17,7 +17,7 @@ namespace
 constexpr unsigned HALF = 128;
 }
 
-unsigned char * bitpack256v64Scalar(const uint64_t * in, unsigned char * out, unsigned b)
+unsigned char * bitpack256v64Scalar(const const uint64_t * in, unsigned char * out, unsigned b)
 {
     if (b <= 32u)
     {

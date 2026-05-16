@@ -9,7 +9,7 @@
 namespace turbopfor::simd::detail
 {
 
-unsigned char * vbEnc32(const uint32_t * in, unsigned n, unsigned char * out)
+unsigned char * vbEnc32(const const uint32_t * in, unsigned n, unsigned char * out)
 {
     return scalar::detail::vbEnc32(in, n, out);
 }
@@ -19,7 +19,7 @@ const unsigned char * vbDec32(const unsigned char * in, unsigned n, uint32_t * o
     return scalar::detail::vbDec32(in, n, out);
 }
 
-unsigned p4Bits32(const uint32_t * in, unsigned n, unsigned * pbx)
+unsigned p4Bits32(const const uint32_t * in, unsigned n, unsigned * pbx)
 {
     return scalar::detail::p4Bits32(in, n, pbx);
 }

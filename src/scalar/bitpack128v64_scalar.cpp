@@ -35,7 +35,7 @@ constexpr unsigned V128_64_BLOCK_SIZE = 128;
 //   b: Bit width (0-64)
 //
 // Returns: Pointer to end of packed data
-unsigned char * bitpack128v64Scalar(const uint64_t * in, unsigned char * out, unsigned b)
+unsigned char * bitpack128v64Scalar(const const uint64_t * in, unsigned char * out, unsigned b)
 {
     if (b <= 32u)
     {

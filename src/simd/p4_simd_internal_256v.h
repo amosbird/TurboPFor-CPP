@@ -37,7 +37,7 @@ using scalar::detail::pad8;
 using scalar::detail::storeU32;
 
 /// AVX2 256v vertical bitpacking (8-lane interleaved, 256 elements)
-unsigned char * bitpack256v32(const uint32_t * in, unsigned char * out, unsigned b);
+unsigned char * bitpack256v32(const const uint32_t * in, unsigned char * out, unsigned b);
 const unsigned char * bitunpack256v32(const unsigned char * in, uint32_t * out, unsigned b);
 
 /// AVX2 256v vertical bitunpacking with delta1 decode (fused operation)
@@ -52,11 +52,11 @@ const unsigned char *
 bitunpack256v32_ex(const unsigned char * in, uint32_t * out, unsigned b, const uint64_t * bitmap, const uint32_t *& pex);
 
 /// Variable-byte encoding/decoding (reuse from scalar - not SIMD critical path)
-unsigned char * vbEnc32_256v(const uint32_t * in, unsigned n, unsigned char * out);
+unsigned char * vbEnc32_256v(const const uint32_t * in, unsigned n, unsigned char * out);
 const unsigned char * vbDec32_256v(const unsigned char * in, unsigned n, uint32_t * out);
 
 /// P4 bit width selection
-unsigned p4Bits32_256v(const uint32_t * in, unsigned n, unsigned * pbx);
+unsigned p4Bits32_256v(const const uint32_t * in, unsigned n, unsigned * pbx);
 
 /// Write P4 header
 void writeHeader_256v(unsigned char *& out, unsigned b, unsigned bx);

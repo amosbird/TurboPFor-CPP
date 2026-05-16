@@ -21,7 +21,7 @@ namespace
 // Two exception strategies:
 // 1. Bitmap patching (bx <= 64): [bitmap][patch bits (bitpack64)][base bits (bitpack128v64 SIMD)]
 // 2. Variable-byte (bx == 65): [count][base bits (bitpack128v64 SIMD)][vbyte64][positions]
-unsigned char * p4Enc128v64PayloadExceptions(uint64_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
+unsigned char * p4Enc128v64PayloadExceptions(const uint64_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
 {
     using namespace turbopfor::simd::detail;
 
@@ -80,7 +80,7 @@ unsigned char * p4Enc128v64PayloadExceptions(uint64_t * in, unsigned n, unsigned
     return out;
 }
 
-unsigned char * p4Enc128v64Payload(uint64_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
+unsigned char * p4Enc128v64Payload(const uint64_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
 {
     using namespace turbopfor::simd::detail;
 
@@ -98,7 +98,7 @@ unsigned char * p4Enc128v64Payload(uint64_t * in, unsigned n, unsigned char * ou
 
 } // namespace
 
-unsigned char * p4Enc128v64(uint64_t * in, unsigned n, unsigned char * out)
+unsigned char * p4Enc128v64(const uint64_t * in, unsigned n, unsigned char * out)
 {
     using namespace turbopfor::simd::detail;
 

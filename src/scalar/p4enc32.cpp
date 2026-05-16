@@ -27,7 +27,7 @@ namespace
 //       33: variable-byte exception encoding
 //
 // Returns: Pointer to end of encoded data
-unsigned char * p4Enc32PayloadExceptions(uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
+unsigned char * p4Enc32PayloadExceptions(const uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
 {
     using namespace turbopfor::scalar::detail;
 
@@ -136,7 +136,7 @@ unsigned char * p4Enc32PayloadExceptions(uint32_t * in, unsigned n, unsigned cha
 //   bx: Exception strategy (see p4Bits32 for encoding)
 //
 // Returns: Pointer to end of encoded data
-unsigned char * p4Enc32Payload(uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
+unsigned char * p4Enc32Payload(const uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
 {
     using namespace turbopfor::scalar::detail;
 
@@ -198,7 +198,7 @@ unsigned char * p4Enc32Payload(uint32_t * in, unsigned n, unsigned char * out, u
 //   out: Output buffer (must have enough space)
 //
 // Returns: Pointer to end of encoded data
-unsigned char * p4Enc32(uint32_t * in, unsigned n, unsigned char * out)
+unsigned char * p4Enc32(const uint32_t * in, unsigned n, unsigned char * out)
 {
     if (n == 0u)
         return out;

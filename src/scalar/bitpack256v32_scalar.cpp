@@ -54,7 +54,7 @@ constexpr unsigned V256_LANE_COUNT = 8;
 //   b: Bit width (0-32)
 //
 // Returns: Pointer to end of packed data
-unsigned char * bitpack256v32Scalar(const uint32_t * in, unsigned char * out, unsigned b)
+unsigned char * bitpack256v32Scalar(const const uint32_t * in, unsigned char * out, unsigned b)
 {
     // Special case: b=0 means all values are 0, no output needed
     if (b == 0u)

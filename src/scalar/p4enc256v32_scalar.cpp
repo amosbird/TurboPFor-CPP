@@ -46,7 +46,7 @@ namespace
 //   bx: Exception strategy indicator
 //
 // Returns: Pointer to end of encoded data
-unsigned char * p4Enc256v32PayloadExceptions(uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
+unsigned char * p4Enc256v32PayloadExceptions(const uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
 {
     using namespace turbopfor::scalar::detail;
 
@@ -167,7 +167,7 @@ unsigned char * p4Enc256v32PayloadExceptions(uint32_t * in, unsigned n, unsigned
 //   bx: Exception strategy
 //
 // Returns: Pointer to end of encoded data
-unsigned char * p4Enc256v32Payload(uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
+unsigned char * p4Enc256v32Payload(const uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
 {
     using namespace turbopfor::scalar::detail;
 
@@ -213,7 +213,7 @@ unsigned char * p4Enc256v32Payload(uint32_t * in, unsigned n, unsigned char * ou
 // Returns: Pointer past end of encoded data
 //
 // Binary compatibility: Output is bit-identical to TurboPFor's p4enc256v32()
-unsigned char * p4Enc256v32(uint32_t * in, unsigned n, unsigned char * out)
+unsigned char * p4Enc256v32(const uint32_t * in, unsigned n, unsigned char * out)
 {
     using namespace turbopfor::scalar::detail;
 

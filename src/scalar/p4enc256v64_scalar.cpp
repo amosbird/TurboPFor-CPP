@@ -12,10 +12,10 @@
 namespace turbopfor::scalar
 {
 
-unsigned char * p4Enc256v64(uint64_t * in, unsigned n, unsigned char * out)
+unsigned char * p4Enc256v64(const uint64_t * in, unsigned n, unsigned char * out)
 {
     unsigned remaining = n;
-    uint64_t * ip = in;
+    const uint64_t * ip = in;
     unsigned char * op = out;
 
     while (remaining > 0u)

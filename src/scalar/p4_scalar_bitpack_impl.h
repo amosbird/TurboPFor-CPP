@@ -119,7 +119,7 @@ static TURBOPFOR_ALWAYS_INLINE unsigned char * pack_n_b(const uint32_t * __restr
 
 // Dispatch on runtime n (1-31) to compile-time N
 template <unsigned B>
-static TURBOPFOR_ALWAYS_INLINE unsigned char * pack_dispatch_n(const uint32_t * in, unsigned n, unsigned char * out)
+static TURBOPFOR_ALWAYS_INLINE unsigned char * pack_dispatch_n(const const uint32_t * in, unsigned n, unsigned char * out)
 {
     switch (n)
     {
@@ -196,7 +196,7 @@ struct Bitpack32ScalarImpl
     using Fn = unsigned char * (*)(const uint32_t *, unsigned, unsigned char *);
 
     template <unsigned B>
-    static TURBOPFOR_ALWAYS_INLINE unsigned char * bitpack_b(const uint32_t * in, unsigned n, unsigned char * out)
+    static TURBOPFOR_ALWAYS_INLINE unsigned char * bitpack_b(const const uint32_t * in, unsigned n, unsigned char * out)
     {
         // Process 32-element blocks
         const uint32_t * end = in + (n & ~31u);
@@ -212,7 +212,7 @@ struct Bitpack32ScalarImpl
         return pack_dispatch_n<B>(in, n, out);
     }
 
-    static unsigned char * dispatch(const uint32_t * in, unsigned n, unsigned char * out, unsigned b)
+    static unsigned char * dispatch(const const uint32_t * in, unsigned n, unsigned char * out, unsigned b)
     {
         if (b == 0u) [[unlikely]]
             return out;

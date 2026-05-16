@@ -4,7 +4,7 @@
 namespace turbopfor::scalar
 {
 
-unsigned char * p4D1Enc32(uint32_t * in, unsigned n, unsigned char * out, uint32_t start)
+unsigned char * p4D1Enc32(const uint32_t * in, unsigned n, unsigned char * out, uint32_t start)
 {
     if (n == 0u)
         return out;

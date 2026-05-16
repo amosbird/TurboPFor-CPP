@@ -9,7 +9,7 @@ namespace
 
 // Encode P4 block with exception handling for 64-bit values
 // Same structure as p4Enc32PayloadExceptions but uses 64-bit types and bitpack64Scalar/vbEnc64
-unsigned char * p4Enc64PayloadExceptions(uint64_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
+unsigned char * p4Enc64PayloadExceptions(const uint64_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
 {
     using namespace turbopfor::scalar::detail;
 
@@ -91,7 +91,7 @@ unsigned char * p4Enc64PayloadExceptions(uint64_t * in, unsigned n, unsigned cha
 }
 
 // Encode P4 block payload for 64-bit values (data after header)
-unsigned char * p4Enc64Payload(uint64_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
+unsigned char * p4Enc64Payload(const uint64_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
 {
     using namespace turbopfor::scalar::detail;
 
@@ -126,7 +126,7 @@ unsigned char * p4Enc64Payload(uint64_t * in, unsigned n, unsigned char * out, u
 // - writeHeader64 for header (with 63→64 quirk)
 // - bitpack64Scalar for bitpacking
 // - vbEnc64 for variable-byte exception encoding
-unsigned char * p4Enc64(uint64_t * in, unsigned n, unsigned char * out)
+unsigned char * p4Enc64(const uint64_t * in, unsigned n, unsigned char * out)
 {
     if (n == 0u)
         return out;

@@ -34,7 +34,7 @@ namespace turbopfor::simd::detail
 //   dispatch. Each bit width B is a compile-time constant, giving immediate-
 //   shift instructions and eliminating the temp buffer overhead.
 // When b > 32: delegate to scalar bitpack64
-unsigned char * bitpack128v64(const uint64_t * in, unsigned char * out, unsigned b)
+unsigned char * bitpack128v64(const const uint64_t * in, unsigned char * out, unsigned b)
 {
     if (b <= 32u)
     {

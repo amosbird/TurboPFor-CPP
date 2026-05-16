@@ -9,7 +9,7 @@ namespace
 
 // Optimized payload encoding for 256 elements with exceptions
 // Uses single-pass algorithm to build base values, exceptions, and bitmap simultaneously
-unsigned char * p4Enc256PayloadExceptions(uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
+unsigned char * p4Enc256PayloadExceptions(const uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
 {
     using namespace turbopfor::simd::detail;
 
@@ -79,7 +79,7 @@ unsigned char * p4Enc256PayloadExceptions(uint32_t * in, unsigned n, unsigned ch
     return out;
 }
 
-unsigned char * p4Enc256Payload(uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
+unsigned char * p4Enc256Payload(const uint32_t * in, unsigned n, unsigned char * out, unsigned b, unsigned bx)
 {
     using namespace turbopfor::simd::detail;
 
@@ -100,7 +100,7 @@ unsigned char * p4Enc256Payload(uint32_t * in, unsigned n, unsigned char * out, 
 
 }  // namespace
 
-unsigned char * p4Enc256v32(uint32_t * in, unsigned n, unsigned char * out)
+unsigned char * p4Enc256v32(const uint32_t * in, unsigned n, unsigned char * out)
 {
     using namespace turbopfor::simd::detail;
 

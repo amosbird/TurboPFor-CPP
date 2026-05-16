@@ -13,7 +13,7 @@ namespace turbopfor::scalar::detail
 /// - Early exit for all-zeros (very common)
 /// - Early exit for constant blocks
 /// - Unrolled loops for 128 elements
-inline unsigned p4Bits128(const uint32_t * in, unsigned * pbx)
+inline unsigned p4Bits128(const const uint32_t * in, unsigned * pbx)
 {
     constexpr unsigned n = 128;
 
