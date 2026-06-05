@@ -66,30 +66,11 @@ ALWAYS_INLINE const unsigned char * p4D1Dec256Exceptions(
     /// SIMD loads read 4/8 elements at a time; unpoison to avoid false positives
     /// when num is not aligned (unused lanes are masked out by shuffle)
     TURBOPFOR_MSAN_UNPOISON(ex, sizeof(ex));
-    uint32_t * ex_ptr = ex;
-    unsigned rem = num;
 
-    static const auto * table128 = BitUnpackAVX2Table<128>::get();
-    static const auto * table32 = BitUnpackAVX2Table<32>::get();
-
-    while (rem >= 128)
-    {
-        ip = table128[bx](ip, ex_ptr);
-        ex_ptr += 128;
-        rem -= 128;
-    }
-
-    while (rem >= 32)
-    {
-        ip = table32[bx](ip, ex_ptr);
-        ex_ptr += 32;
-        rem -= 32;
-    }
-
-    if (rem > 0)
-    {
-        ip = scalar::detail::bitunpack32Scalar(ip, rem, ex_ptr, bx);
-    }
+    /// Exceptions are packed by scalar bitpack32Scalar (horizontal layout).
+    /// Must use matching scalar unpack — the SIMD bitunpack tables use
+    /// vertical/interleaved layout which is incompatible.
+    ip = scalar::detail::bitunpack32Scalar(ip, num, ex, bx);
 
     const uint32_t * pex = ex;
     ip = bitd1unpack256v32_ex(ip, out, b, start, bitmap, pex);

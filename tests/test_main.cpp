@@ -32,6 +32,7 @@ unsigned runD1Enc256v64RoundtripTest();
 
 // Regression tests
 unsigned runOveradvanceTest();
+unsigned runBitmapExceptionTest();
 
 int main()
 {
@@ -62,12 +63,13 @@ int main()
     unsigned failed_d1enc256v64 = runD1Enc256v64RoundtripTest();
 
     unsigned failed_overadvance = runOveradvanceTest();
+    unsigned failed_bitmap_exc = runBitmapExceptionTest();
 
     unsigned total = failed_p4_32 + failed_128v_cross + failed_128v_compat + failed_bitunpack + failed_bitunpack_d1 + failed_256v_cross
         + failed_256v_compat + failed_p4dec32 + failed_p4dec128v32 + failed_p4dec256v32 + failed_bitpack64 + failed_p4_64 + failed_128v64 + failed_256v64 + failed_vbyte64
         + failed_p4dec64
         + failed_d1enc32 + failed_d1enc128v32 + failed_d1enc256v32 + failed_d1enc64 + failed_d1enc128v64 + failed_d1enc256v64
-        + failed_overadvance;
+        + failed_overadvance + failed_bitmap_exc;
 
     std::printf("=== Summary ===\n");
     std::printf("  p4enc/dec 32-bit:      %u failures\n", failed_p4_32);
@@ -93,6 +95,7 @@ int main()
     std::printf("  p4D1Enc128v64:         %u failures\n", failed_d1enc128v64);
     std::printf("  p4D1Enc256v64:         %u failures\n", failed_d1enc256v64);
     std::printf("  overadvance regression:%u failures\n", failed_overadvance);
+    std::printf("  bitmap exc decode:    %u failures\n", failed_bitmap_exc);
     std::printf("Total failures: %u\n", total);
 
     return total > 0 ? 1 : 0;
